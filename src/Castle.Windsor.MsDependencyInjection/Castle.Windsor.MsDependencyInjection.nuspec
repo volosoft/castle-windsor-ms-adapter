@@ -1,0 +1,16 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<package>
+  <metadata>
+    <id>Castle.Windsor.MsDependencyInjection</id>
+    <version>$version$</version>
+    <title>Castle.Windsor.MsDependencyInjection</title>
+    <authors>Halil İbrahim Kalkan</authors>
+    <owners>Halil İbrahim Kalkan</owners>
+    <description>Castle Windsor Adapter for Microsoft.Extensions.DependencyInjection Package</description>
+    <projectUrl>https://github.com/volosoft/castle-windsor-ms-adapter</projectUrl>
+    <tags>castle windsor dependency injection extensions</tags>
+  </metadata>
+  <files>
+    <file src="bin\$configuration$\$id$.pdb" target="lib\net452\" />
+  </files>
+</package>
