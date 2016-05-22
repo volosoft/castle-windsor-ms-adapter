@@ -1,7 +1,8 @@
 ﻿using System;
+using Castle.Windsor;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Castle.Windsor.MsDependencyInjection
+namespace CastleWindsorAspNetCoreDemo.DI
 {
     /// <summary>
     /// Implements <see cref="IServiceScope"/>.

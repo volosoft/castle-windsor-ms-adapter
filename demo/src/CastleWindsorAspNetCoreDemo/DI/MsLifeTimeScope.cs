@@ -5,7 +5,7 @@ using Castle.Core.Internal;
 using Castle.MicroKernel;
 using Castle.MicroKernel.Lifestyle.Scoped;
 
-namespace Castle.Windsor.MsDependencyInjection
+namespace CastleWindsorAspNetCoreDemo.DI
 {
     /// <summary>
     /// Wrapper for Windsor lifetime infrastructure.
