@@ -1,24 +1,24 @@
-﻿using Castle.MicroKernel;
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
 
 namespace Castle.Windsor.MsDependencyInjection
 {
     /// <summary>
-    /// Implements <see cref="IServiceScopeFactory"/> 
-    /// to create <see cref="IWindsorServiceScope"/> objects as <see cref="IServiceScope"/>.
+    /// Implements <see cref="IServiceScopeFactory"/>.
     /// </summary>
     public class WindsorServiceScopeFactory : IServiceScopeFactory
     {
-        private readonly IKernel _kernel;
+        private readonly IWindsorContainer _container; 
+        private readonly MsLifetimeScope _msLifetimeScope;
 
-        public WindsorServiceScopeFactory(IKernel kernel)
-        {
-            _kernel = kernel;
+        public WindsorServiceScopeFactory(IWindsorContainer container, MsLifetimeScopeProvider msLifetimeScopeProvider)
+        { 
+            _container = container;
+            _msLifetimeScope = msLifetimeScopeProvider.LifetimeScope;
         }
 
         public IServiceScope CreateScope()
         {
-            return _kernel.Resolve<IWindsorServiceScope>();
+            return new WindsorServiceScope(_container, _msLifetimeScope);
         }
     }
 }

@@ -5,7 +5,7 @@ namespace Castle.Windsor.MsDependencyInjection
 {
     /// <summary>
     /// Implements <see cref="IScopeAccessor"/> to get <see cref="ILifetimeScope"/>
-    /// from current scope.
+    /// from <see cref="MsLifetimeScope.Current"/>.
     /// </summary>
     public class MsScopedAccesor : IScopeAccessor
     {
@@ -16,7 +16,7 @@ namespace Castle.Windsor.MsDependencyInjection
 
         public ILifetimeScope GetScope(CreationContext context)
         {
-            return ScopedWindsorServiceProvider.Current.Scope.LifeTimeScope;
+            return MsLifetimeScope.Current.WindsorLifeTimeScope;
         }
     }
 }

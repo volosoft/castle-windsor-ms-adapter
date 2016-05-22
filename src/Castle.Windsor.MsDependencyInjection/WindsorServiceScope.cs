@@ -1,62 +1,30 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using Castle.Core.Internal;
-using Castle.MicroKernel;
-using Castle.MicroKernel.Lifestyle.Scoped;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Castle.Windsor.MsDependencyInjection
 {
     /// <summary>
-    /// Implements <see cref="IWindsorServiceScope"/> (and <see cref="IServiceScope"/>)
-    /// to 
-    /// </summary>
-    public class WindsorServiceScope : IWindsorServiceScope
+    /// Implements <see cref="IServiceScope"/>.
+    /// </summary> 
+    public class WindsorServiceScope : IServiceScope
     {
-        public IServiceProvider ServiceProvider { get { return _serviceProvider; } }
+        public IServiceProvider ServiceProvider { get; private set; }
 
-        public ILifetimeScope LifeTimeScope { get; private set; }
+        public MsLifetimeScope LifetimeScope { get; private set; }
 
-        private readonly HashSet<Burden> _burdens;
-        private readonly IWindsorContainer _container;
-        private readonly IScopedWindsorServiceProvider _serviceProvider;
-
-        private ThreadSafeFlag _disposed;
-
-        public WindsorServiceScope(IWindsorContainer container)
+        public WindsorServiceScope(IWindsorContainer container, MsLifetimeScope currentMsLifetimeScope)
         {
-            _container = container;
-            _serviceProvider = new ScopedWindsorServiceProvider(container, this);
-
-            _burdens = new HashSet<Burden>();
-            _disposed = new ThreadSafeFlag();
-
-            LifeTimeScope = new DefaultLifetimeScope();
+            LifetimeScope = new MsLifetimeScope();
+            
+            using (MsLifetimeScope.Using(LifetimeScope))
+            {
+                ServiceProvider = container.Resolve<IServiceProvider>();
+            }
         }
-
-        public void Track(Burden burden)
-        {
-            _burdens.Add(burden);
-            burden.Releasing += Burden_Releasing;
-        }
-
-        private void Burden_Releasing(Burden burden)
-        {
-            _burdens.Remove(burden);
-        }
-
+         
         public void Dispose()
         {
-            if (!_disposed.Signal())
-            {
-                return;
-            }
-
-            LifeTimeScope.Dispose();
-            _burdens.Reverse().ToList().ForEach(b => b.Release());
-
-            _container.Release(this);
+            LifetimeScope.Dispose();
         }
     }
 }

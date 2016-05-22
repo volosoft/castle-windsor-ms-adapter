@@ -19,24 +19,23 @@ namespace Castle.Windsor.MsDependencyInjection
             container.Register(
 
                 Component.For<IWindsorContainer>()
-                    .Instance(container),
+                    .Instance(container)
+                    .LifestyleSingleton(),
+
+                Component.For<GlobalMsLifetimeScopeProvider>()
+                    .LifestyleSingleton(),
+
+                Component.For<MsLifetimeScopeProvider>()
+                    .LifestyleTransient(),
 
                 Component.For<IServiceScopeFactory>()
                     .ImplementedBy<WindsorServiceScopeFactory>()
-                    .LifestyleSingleton(),
-
-                Component.For<IServiceScope, IWindsorServiceScope>()
-                    .ImplementedBy<WindsorServiceScope>()
                     .LifestyleTransient(),
 
-                Component.For<IServiceProvider, IScopedWindsorServiceProvider>()
+                Component.For<IServiceProvider>()
                     .ImplementedBy<ScopedWindsorServiceProvider>()
-                    .LifestyleCustom<MsScopedLifestyleManager>(),
-
-                Component.For<IMainWindsorServiceProvider>()
-                    .ImplementedBy<MainWindsorServiceProvider>()
-                    .LifestyleSingleton()
-
+                    .LifestyleTransient()
+                     
                 );
 
             // ASP.NET Core uses IEnumerable<T> to resolve a list of types.
@@ -49,7 +48,7 @@ namespace Castle.Windsor.MsDependencyInjection
                 RegisterServiceDescriptor(container, serviceDescriptor);
             }
 
-            return container.Resolve<IMainWindsorServiceProvider>();
+            return container.Resolve<IServiceProvider>();
         }
 
         private static void RegisterServiceDescriptor(IWindsorContainer container, ServiceDescriptor serviceDescriptor)
@@ -73,13 +72,13 @@ namespace Castle.Windsor.MsDependencyInjection
                         .ConfigureLifecycle(serviceDescriptor.Lifetime));
             }
             else if (serviceDescriptor.ImplementationFactory != null)
-            {
+            { 
                 var serviceDescriptorRef = serviceDescriptor;
                 container.Register(
                     Component.For(serviceDescriptor.ServiceType)
                         .Named(uniqueName)
                         .IsDefault()
-                        .UsingFactoryMethod(c => serviceDescriptorRef.ImplementationFactory(ScopedWindsorServiceProvider.Current ?? c.Resolve<IMainWindsorServiceProvider>()))
+                        .UsingFactoryMethod(c => serviceDescriptorRef.ImplementationFactory(c.Resolve<IServiceProvider>()))
                         .ConfigureLifecycle(serviceDescriptor.Lifetime)
                     );
             }
@@ -90,7 +89,7 @@ namespace Castle.Windsor.MsDependencyInjection
                         .Named(uniqueName)
                         .IsDefault()
                         .Instance(serviceDescriptor.ImplementationInstance)
-                        .LifestyleSingleton()
+                        .ConfigureLifecycle(serviceDescriptor.Lifetime)
                     );
             }
         }
@@ -106,7 +105,7 @@ namespace Castle.Windsor.MsDependencyInjection
                     registrationBuilder.LifestyleCustom<MsScopedLifestyleManager>();
                     break;
                 case ServiceLifetime.Singleton:
-                    registrationBuilder.LifestyleSingleton();
+                    registrationBuilder.LifestyleCustom<MyScopedSingletonLifestyleManager>();
                     break;
                 default:
                     throw new NotImplementedException("Unknown ServiceLifetime: " + serviceLifetime);

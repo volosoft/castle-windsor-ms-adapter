@@ -14,9 +14,9 @@ namespace Castle.Windsor.MsDependencyInjection
         {
             var burden = base.CreateInstance(context, trackedExternally);
 
-            if (ScopedWindsorServiceProvider.Current != null && ScopedWindsorServiceProvider.Current.Scope != null)
+            if (MsLifetimeScope.Current != null)
             {
-                ScopedWindsorServiceProvider.Current.Scope.Track(burden);
+                MsLifetimeScope.Current.Track(burden);
             }
 
             return burden;

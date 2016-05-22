@@ -57,16 +57,17 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="IMainWindsorServiceProvider.cs" />
-    <Compile Include="MainWindsorServiceProvider.cs" />
+    <Compile Include="DisposeAction.cs" />
+    <Compile Include="GlobalMsLifetimeScopeProvider.cs" />
+    <Compile Include="MsLifeTimeScope.cs" />
+    <Compile Include="MsLifeTimeScopeProvider.cs" />
     <Compile Include="MsScopedAccesor.cs" />
     <Compile Include="MsScopedLifestyleManager.cs" />
     <Compile Include="MsScopedTransientLifestyleManager.cs" />
-    <Compile Include="IScopedWindsorServiceProvider.cs" />
-    <Compile Include="IWindsorServiceScope.cs" />
+    <Compile Include="MyScopedSingletonLifestyleManager.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="WindsorRegistrationHelper.cs" />
     <Compile Include="ScopedWindsorServiceProvider.cs" />
+    <Compile Include="WindsorRegistrationHelper.cs" />
     <Compile Include="WindsorServiceScope.cs" />
     <Compile Include="WindsorServiceScopeFactory.cs" />
   </ItemGroup>

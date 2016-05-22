@@ -1,53 +1,26 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Reflection;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace Castle.Windsor.MsDependencyInjection
 {
     /// <summary>
-    /// Implements <see cref="IScopedWindsorServiceProvider"/> (and <see cref="IServiceProvider"/>) to get service
-    /// from <see cref="IWindsorContainer"/> in a scoped manner.
+    /// Implements <see cref="IServiceProvider"/>.
     /// </summary>
-    public class ScopedWindsorServiceProvider : IScopedWindsorServiceProvider
+    public class ScopedWindsorServiceProvider : IServiceProvider
     {
-        /// <summary>
-        /// Reference to the current service provider that can be usable
-        /// in a service resolution.
-        /// </summary>
-        [ThreadStatic]
-        public static IScopedWindsorServiceProvider Current;
-
-        public IWindsorServiceScope Scope { get { return _scope; } }
-
         private readonly IWindsorContainer _container;
-        private readonly IWindsorServiceScope _scope;
-        
-        public ScopedWindsorServiceProvider(IWindsorContainer container, IWindsorServiceScope scope)
+        private readonly MsLifetimeScope _ownMsLifetimeScope;
+
+        public ScopedWindsorServiceProvider(IWindsorContainer container, MsLifetimeScopeProvider msLifetimeScopeProvider)
         {
             _container = container;
-            _scope = scope;
+            _ownMsLifetimeScope = msLifetimeScopeProvider.LifetimeScope;
         }
 
         public object GetService(Type serviceType)
         {
-            if (serviceType == typeof(IServiceProvider) ||
-                serviceType == typeof(IScopedWindsorServiceProvider))
-            {
-                return this;
-            }
-
-            if (serviceType == typeof(IServiceScope) ||
-                serviceType == typeof(IWindsorServiceScope))
-            {
-                return _scope;
-            }
-
-
-            var previous = Current;
-            Current = this;
-
-            try
+            using (MsLifetimeScope.Using(_ownMsLifetimeScope))
             {
                 // MS uses GetService<IEnumerable<TDesiredType>>() to get a collection.
                 // This must be resolved with IWindsorContainer.ResolveAll();
@@ -66,14 +39,10 @@ namespace Castle.Windsor.MsDependencyInjection
                 {
                     return _container.Resolve(serviceType);
                 }
-            }
-            finally
-            {
-                Current = previous;
-            }
 
-            //Not found
-            return null;
+                //Not found
+                return null;
+            }
         }
     }
 }
