@@ -1,7 +1,7 @@
 ﻿using Castle.MicroKernel.Context;
 using Castle.MicroKernel.Lifestyle.Scoped;
 
-namespace CastleWindsorAspNetCoreDemo.DI
+namespace Castle.Windsor.MsDependencyInjection
 {
     /// <summary>
     /// Implements <see cref="IScopeAccessor"/> to get <see cref="ILifetimeScope"/>

@@ -5,7 +5,7 @@ using Castle.Core.Internal;
 using Castle.MicroKernel;
 using Castle.MicroKernel.Lifestyle.Scoped;
 
-namespace CastleWindsorAspNetCoreDemo.DI
+namespace Castle.Windsor.MsDependencyInjection
 {
     /// <summary>
     /// Wrapper for Windsor lifetime infrastructure.
@@ -55,8 +55,8 @@ namespace CastleWindsorAspNetCoreDemo.DI
                 child.Dispose();
             }
 
-            _transientBurdens.Reverse().ToList().ForEach(b => b.Release());
             WindsorLifeTimeScope.Dispose();
+            _transientBurdens.Reverse().ToList().ForEach(b => b.Release());
         }
 
         public static IDisposable Using(MsLifetimeScope newLifetimeScope)

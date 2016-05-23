@@ -1,9 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Reflection;
-using Castle.Windsor;
 
-namespace CastleWindsorAspNetCoreDemo.DI
+namespace Castle.Windsor.MsDependencyInjection
 {
     /// <summary>
     /// Implements <see cref="IServiceProvider"/>.

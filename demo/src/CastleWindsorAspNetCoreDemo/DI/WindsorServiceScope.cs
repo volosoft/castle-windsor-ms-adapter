@@ -1,8 +1,7 @@
 ﻿using System;
-using Castle.Windsor;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace CastleWindsorAspNetCoreDemo.DI
+namespace Castle.Windsor.MsDependencyInjection
 {
     /// <summary>
     /// Implements <see cref="IServiceScope"/>.
@@ -17,7 +16,10 @@ namespace CastleWindsorAspNetCoreDemo.DI
         {
             LifetimeScope = new MsLifetimeScope();
 
-            currentMsLifetimeScope.Children.Add(LifetimeScope);
+            if (currentMsLifetimeScope != null)
+            {
+                currentMsLifetimeScope.Children.Add(LifetimeScope);
+            }
 
             using (MsLifetimeScope.Using(LifetimeScope))
             {

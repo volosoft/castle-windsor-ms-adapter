@@ -1,7 +1,6 @@
-﻿using Castle.Windsor;
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
 
-namespace CastleWindsorAspNetCoreDemo.DI
+namespace Castle.Windsor.MsDependencyInjection
 {
     /// <summary>
     /// Implements <see cref="IServiceScopeFactory"/>.

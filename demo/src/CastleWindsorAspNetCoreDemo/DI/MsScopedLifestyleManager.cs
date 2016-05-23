@@ -1,6 +1,8 @@
-﻿using Castle.MicroKernel.Lifestyle;
+﻿using Castle.MicroKernel;
+using Castle.MicroKernel.Context;
+using Castle.MicroKernel.Lifestyle;
 
-namespace CastleWindsorAspNetCoreDemo.DI
+namespace Castle.Windsor.MsDependencyInjection
 {
     /// <summary>
     /// Extends Windsor's <see cref="ScopedLifestyleManager"/> to work as 
@@ -9,9 +11,21 @@ namespace CastleWindsorAspNetCoreDemo.DI
     public class MsScopedLifestyleManager : ScopedLifestyleManager
     {
         public MsScopedLifestyleManager()
-            :base(new MsScopedAccesor())
+            : base(new MsScopedAccesor())
         {
-            
+
+        }
+
+        public override object Resolve(CreationContext context, IReleasePolicy releasePolicy)
+        {
+            if (MsLifetimeScope.Current == null)
+            {
+                var burden = CreateInstance(context, false);
+                Track(burden, releasePolicy);
+                return burden.Instance;
+            }
+
+            return base.Resolve(context, releasePolicy);
         }
     }
 }

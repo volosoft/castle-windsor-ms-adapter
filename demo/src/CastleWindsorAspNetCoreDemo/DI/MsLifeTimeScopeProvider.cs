@@ -1,4 +1,4 @@
-namespace CastleWindsorAspNetCoreDemo.DI
+namespace Castle.Windsor.MsDependencyInjection
 {
     /// <summary>
     /// Used to obtain true lifetime scope for dependent service.

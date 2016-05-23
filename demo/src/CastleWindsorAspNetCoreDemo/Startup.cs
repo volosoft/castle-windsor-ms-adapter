@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Autofac;
 using Autofac.Extensions.DependencyInjection;
 using Castle.Windsor;
+using Castle.Windsor.MsDependencyInjection;
 //using Castle.Windsor.MsDependencyInjection;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -16,7 +17,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using CastleWindsorAspNetCoreDemo.Data;
-using CastleWindsorAspNetCoreDemo.DI;
 using CastleWindsorAspNetCoreDemo.Models;
 using CastleWindsorAspNetCoreDemo.Services;
 

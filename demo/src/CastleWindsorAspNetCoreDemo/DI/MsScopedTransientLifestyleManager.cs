@@ -2,7 +2,7 @@
 using Castle.MicroKernel.Context;
 using Castle.MicroKernel.Lifestyle;
 
-namespace CastleWindsorAspNetCoreDemo.DI
+namespace Castle.Windsor.MsDependencyInjection
 {
     /// <summary>
     /// Extends <see cref="TransientLifestyleManager"/> to track resolved instances

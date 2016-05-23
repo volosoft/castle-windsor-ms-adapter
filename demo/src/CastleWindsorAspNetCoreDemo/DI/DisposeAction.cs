@@ -1,6 +1,6 @@
 using System;
 
-namespace CastleWindsorAspNetCoreDemo.DI
+namespace Castle.Windsor.MsDependencyInjection
 {
     /// <summary>
     /// This class can be used to provide an action when

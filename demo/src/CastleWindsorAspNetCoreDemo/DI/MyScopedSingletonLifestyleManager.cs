@@ -3,7 +3,7 @@ using Castle.MicroKernel;
 using Castle.MicroKernel.Context;
 using Castle.MicroKernel.Lifestyle;
 
-namespace CastleWindsorAspNetCoreDemo.DI
+namespace Castle.Windsor.MsDependencyInjection
 {
     /// <summary>
     /// Used to adapt MS style Singletons to Windsor's Singleton with <see cref="MsLifetimeScope"/>.
@@ -21,6 +21,11 @@ namespace CastleWindsorAspNetCoreDemo.DI
 
         public override object Resolve(CreationContext context, IReleasePolicy releasePolicy)
         {
+            if (MsLifetimeScope.Current == null)
+            {
+                return base.Resolve(context, releasePolicy);
+            }
+
             using (MsLifetimeScope.Using(_globalMsLifetimeScopeProvider.LifetimeScope))
             {
                 return base.Resolve(context, releasePolicy);
