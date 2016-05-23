@@ -1,6 +1,8 @@
 # Castle Windsor Microsoft.Extensions.DependencyInjection Adapter
 This library is a Castle Windsor adapter for Microsoft.Extensions.DependencyInjection nuget package.
-# How To Use?
+
+## How To Use?
+
 1. Install Puget Package
 
 `Install-Package Castle.Windsor.MsDependencyInjection`
