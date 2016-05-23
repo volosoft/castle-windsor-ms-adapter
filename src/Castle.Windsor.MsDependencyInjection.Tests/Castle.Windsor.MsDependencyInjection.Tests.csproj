@@ -53,6 +53,10 @@
       <HintPath>..\packages\Microsoft.Extensions.DependencyInjection.Specification.Tests.1.0.0-rc2-final\lib\netstandard1.1\Microsoft.Extensions.DependencyInjection.Specification.Tests.dll</HintPath>
       <Private>True</Private>
     </Reference>
+    <Reference Include="Shouldly, Version=2.7.0.0, Culture=neutral, PublicKeyToken=6042cbcb05cbc941, processorArchitecture=MSIL">
+      <HintPath>..\packages\Shouldly.2.7.0\lib\net40\Shouldly.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Xml.Linq" />
@@ -79,6 +83,11 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="TestClasses\BaseTestClass.cs" />
+    <Compile Include="TestClasses\DisposeCounter.cs" />
+    <Compile Include="TestClasses\MyTestClass1.cs" />
+    <Compile Include="TestClasses\MyTestClass2.cs" />
+    <Compile Include="TestClasses\MyTestClass3.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="WindsorSpecificationTests.cs" />
   </ItemGroup>

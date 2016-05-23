@@ -55,8 +55,8 @@ namespace Castle.Windsor.MsDependencyInjection
                 child.Dispose();
             }
 
-            _transientBurdens.Reverse().ToList().ForEach(b => b.Release());
             WindsorLifeTimeScope.Dispose();
+            _transientBurdens.Reverse().ToList().ForEach(b => b.Release());
         }
 
         public static IDisposable Using(MsLifetimeScope newLifetimeScope)

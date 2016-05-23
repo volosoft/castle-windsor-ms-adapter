@@ -21,6 +21,11 @@ namespace Castle.Windsor.MsDependencyInjection
 
         public override object Resolve(CreationContext context, IReleasePolicy releasePolicy)
         {
+            if (MsLifetimeScope.Current == null)
+            {
+                return base.Resolve(context, releasePolicy);
+            }
+
             using (MsLifetimeScope.Using(_globalMsLifetimeScopeProvider.LifetimeScope))
             {
                 return base.Resolve(context, releasePolicy);

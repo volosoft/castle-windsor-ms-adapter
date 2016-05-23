@@ -16,7 +16,10 @@ namespace Castle.Windsor.MsDependencyInjection
         {
             LifetimeScope = new MsLifetimeScope();
 
-            currentMsLifetimeScope.Children.Add(LifetimeScope);
+            if (currentMsLifetimeScope != null)
+            {
+                currentMsLifetimeScope.Children.Add(LifetimeScope);
+            }
 
             using (MsLifetimeScope.Using(LifetimeScope))
             {
