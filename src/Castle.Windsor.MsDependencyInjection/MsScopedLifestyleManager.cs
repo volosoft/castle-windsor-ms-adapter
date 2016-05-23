@@ -20,6 +20,7 @@ namespace Castle.Windsor.MsDependencyInjection
         {
             if (MsLifetimeScope.Current == null)
             {
+                //Act as transient!
                 var burden = CreateInstance(context, false);
                 Track(burden, releasePolicy);
                 return burden.Instance;

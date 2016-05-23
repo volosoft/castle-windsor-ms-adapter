@@ -61,16 +61,11 @@ namespace Castle.Windsor.MsDependencyInjection
 
         public static IDisposable Using(MsLifetimeScope newLifetimeScope)
         {
-            return Using(newLifetimeScope, Current);
-        }
-
-        public static IDisposable Using(MsLifetimeScope newLifetimeScope, MsLifetimeScope restoreLifetimeScope)
-        {
+            var previous = Current;
             Current = newLifetimeScope;
-
             return new DisposeAction(() =>
             {
-                Current = restoreLifetimeScope;
+                Current = previous;
             });
         }
     }
