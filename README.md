@@ -36,3 +36,6 @@ public IServiceProvider ConfigureServices(IServiceCollection services)
 ````
 
 Changed return type  from void to IServiceProvider and used WindsorRegistrationHelper.
+
+## License
+MIT (https://github.com/volosoft/castle-windsor-ms-adapter/blob/master/LICENSE)
