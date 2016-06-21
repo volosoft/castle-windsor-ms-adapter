@@ -4,7 +4,7 @@ namespace Castle.Windsor.MsDependencyInjection
 {
     /// <summary>
     /// This class can be used to provide an action when
-    /// Dipose method is called.
+    /// Dispose method is called.
     /// </summary>
     internal class DisposeAction : IDisposable
     {
@@ -18,7 +18,7 @@ namespace Castle.Windsor.MsDependencyInjection
         {
             if (action == null)
             {
-                throw new ArgumentNullException("action");
+                throw new ArgumentNullException(nameof(action));
             }
 
             _action = action;
