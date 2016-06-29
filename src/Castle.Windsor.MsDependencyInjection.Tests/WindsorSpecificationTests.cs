@@ -10,20 +10,18 @@ namespace Castle.Windsor.MsDependencyInjection.Tests
 {
     public class WindsorSpecificationTests : DependencyInjectionSpecificationTests, IDisposable
     {
-        private readonly IWindsorContainer _container;
-        private readonly DisposeCounter _disposeCounter;
-
-        public WindsorSpecificationTests()
-        {
-            _container = new WindsorContainer();
-            _container.Register(Component.For<DisposeCounter>().LifestyleSingleton());
-            _disposeCounter = _container.Resolve<DisposeCounter>();
-        }
+        private DisposeCounter _disposeCounter;
 
         protected override IServiceProvider CreateServiceProvider(IServiceCollection serviceCollection)
         {
+            var windsorContainer = new WindsorContainer();
+
+            windsorContainer.Register(Component.For<DisposeCounter>().LifestyleSingleton());
+
+            _disposeCounter = windsorContainer.Resolve<DisposeCounter>();
+
             return WindsorRegistrationHelper.CreateServiceProvider(
-                _container,
+                windsorContainer,
                 serviceCollection
                 );
         }
@@ -31,19 +29,20 @@ namespace Castle.Windsor.MsDependencyInjection.Tests
         [Fact]
         public void ResolvingFromScopeAndReleasingShouldWorkForWindsorTransients()
         {
-            _container.Register(Component.For<MyTestClass1>().LifestyleTransient());
-
             var collection = new ServiceCollection();
             collection.AddScoped<MyTestClass2>();
             collection.AddTransient<MyTestClass3>();
 
             var serviceProvider = CreateServiceProvider(collection);
+
+            serviceProvider.GetService<IWindsorContainer>().Register(Component.For<MyTestClass1>().LifestyleTransient());
+
             var scopeFactory = serviceProvider.GetService<IServiceScopeFactory>();
             using (var scope = scopeFactory.CreateScope())
             {
                 var testObj1 = scope.ServiceProvider.GetService<MyTestClass1>();
                 testObj1.IsDisposed.ShouldBeFalse();
-                _container.Release(testObj1);
+                serviceProvider.GetService<IWindsorContainer>().Release(testObj1);
                 testObj1.IsDisposed.ShouldBeTrue();
 
                 _disposeCounter.Get<MyTestClass1>().ShouldBe(1);
@@ -58,17 +57,17 @@ namespace Castle.Windsor.MsDependencyInjection.Tests
         [Fact]
         public void ResolvingFromContainerShouldWork()
         {
-            _container.Register(Component.For<MyTestClass1>().LifestyleTransient());
-
             var collection = new ServiceCollection();
             collection.AddScoped<MyTestClass2>();
             collection.AddTransient<MyTestClass3>();
 
             var serviceProvider = CreateServiceProvider(collection);
 
-            var testObj1 = _container.Resolve<MyTestClass1>();
+            serviceProvider.GetService<IWindsorContainer>().Register(Component.For<MyTestClass1>().LifestyleTransient());
+
+            var testObj1 = serviceProvider.GetService<IWindsorContainer>().Resolve<MyTestClass1>();
             testObj1.IsDisposed.ShouldBeFalse();
-            _container.Release(testObj1);
+            serviceProvider.GetService<IWindsorContainer>().Release(testObj1);
             testObj1.IsDisposed.ShouldBeTrue();
 
             _disposeCounter.Get<MyTestClass1>().ShouldBe(1);
@@ -79,13 +78,15 @@ namespace Castle.Windsor.MsDependencyInjection.Tests
         [Fact]
         public void ResolvingFromScopeShouldWorkForWindsorTransients()
         {
-            _container.Register(Component.For<MyTestClass3>().LifestyleTransient());
 
             var collection = new ServiceCollection();
             collection.AddTransient<MyTestClass1>();
             collection.AddScoped<MyTestClass2>();
 
             var serviceProvider = CreateServiceProvider(collection);
+
+            serviceProvider.GetService<IWindsorContainer>().Register(Component.For<MyTestClass3>().LifestyleTransient());
+
             var scopeFactory = serviceProvider.GetService<IServiceScopeFactory>();
             using (var scope = scopeFactory.CreateScope())
             {

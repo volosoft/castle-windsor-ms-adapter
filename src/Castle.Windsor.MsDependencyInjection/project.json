@@ -1,21 +1,31 @@
-﻿{
-  "version": "0.2.0-*",
-  "description": "Castle Windsor Adapter for Microsoft.Extensions.DependencyInjection Package",
-  "authors": [ "Halil İbrahim Kalkan" ],
-  "projectUrl": "https://github.com/volosoft/castle-windsor-ms-adapter",
-  "licenseUrl": "https://github.com/volosoft/castle-windsor-ms-adapter/blob/master/LICENSE",
-  "tags": [ "Windsor", "Castle", "AspNetCore", "DI", "IoC", "DNX", "DependencyInjection", "Extensions" ],
+{
+  "version": "1.0.0-*",
 
   "dependencies": {
-    "Microsoft.Extensions.DependencyInjection": "1.0.0-rc2-final",
-    "NETStandard.Library": "1.5.0-rc2-24027"
+    "Microsoft.Extensions.DependencyInjection": "1.0.0",
+    "Castle.Windsor": "3.3.0"
   },
 
   "frameworks": {
     "net452": {
-      "dependencies": {
-        "Castle.Windsor": "3.3.0"
-      }
+      "frameworkAssemblies": {
+        "System.Runtime": {
+          "type": "build"
+        }
+      } 
+    }
+  },
+
+  "packOptions": {
+    "summary": "Castle Windsor Adapter for Microsoft.Extensions.DependencyInjection Package",
+    "owners": [ "Halil İbrahim Kalkan" ],
+    "projectUrl": "https://github.com/volosoft/castle-windsor-ms-adapter",
+    "licenseUrl": "https://github.com/volosoft/castle-windsor-ms-adapter/blob/master/LICENSE",
+    "tags": [ "Windsor", "Castle", "AspNetCore", "DI", "IoC", "DNX", "DependencyInjection", "Extensions" ],
+    "requireLicenseAcceptance": false,
+    "repository": {
+      "type": "git",
+      "url": "https://github.com/volosoft/castle-windsor-ms-adapter"
     }
   }
 }
