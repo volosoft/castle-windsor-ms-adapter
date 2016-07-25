@@ -13,7 +13,7 @@
     "Castle.Windsor.MsDependencyInjection": "1.0.0-*"
   },
   "frameworks": {
-    "net452": {
+    "net461": {
       "Microsoft.NETCore.App": "1.0.0",
       "imports": [
         "dnxcore50",

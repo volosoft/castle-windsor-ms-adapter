@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using Castle.Core.Internal;
 using Castle.MicroKernel;
 using Castle.MicroKernel.Lifestyle.Scoped;
@@ -12,8 +13,25 @@ namespace Castle.Windsor.MsDependencyInjection
     /// </summary>
     public class MsLifetimeScope
     {
+
+#if NET452
+        public static MsLifetimeScope Current
+        {
+            get { return _current; }
+            set { _current = value; }
+        }
+
         [ThreadStatic]
-        public static MsLifetimeScope Current;
+        private static MsLifetimeScope _current;
+#elif NET461
+        public static MsLifetimeScope Current
+        {
+            get { return _current.Value; }
+            set { _current.Value = value; }
+        }
+
+        private static readonly AsyncLocal<MsLifetimeScope> _current = new AsyncLocal<MsLifetimeScope>();
+#endif
 
         public ILifetimeScope WindsorLifeTimeScope { get; private set; }
 

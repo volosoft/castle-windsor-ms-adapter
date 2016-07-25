@@ -8,7 +8,7 @@ namespace Castle.Windsor.MsDependencyInjection
     /// </summary>
     public class GlobalMsLifetimeScopeProvider : IDisposable
     {
-        public MsLifetimeScope LifetimeScope { get; private set; }
+        public MsLifetimeScope LifetimeScope { get; }
 
         public GlobalMsLifetimeScopeProvider()
         {

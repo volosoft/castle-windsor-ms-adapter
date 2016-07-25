@@ -12,8 +12,15 @@
         "System.Runtime": {
           "type": "build"
         }
-      } 
-    }
+      }
+    },
+    "net461": {
+      "frameworkAssemblies": {
+        "System.Runtime": {
+          "type": "build"
+        }
+      }
+    } 
   },
 
   "packOptions": {
