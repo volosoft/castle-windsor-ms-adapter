@@ -33,9 +33,9 @@ namespace Castle.Windsor.MsDependencyInjection
         private static readonly AsyncLocal<MsLifetimeScope> _current = new AsyncLocal<MsLifetimeScope>();
 #endif
 
-        public ILifetimeScope WindsorLifeTimeScope { get; private set; }
+        public ILifetimeScope WindsorLifeTimeScope { get; }
 
-        public List<MsLifetimeScope> Children { get; set; }
+        private readonly List<MsLifetimeScope> _children;
 
         private readonly HashSet<Burden> _transientBurdens;
 
@@ -44,7 +44,7 @@ namespace Castle.Windsor.MsDependencyInjection
         public MsLifetimeScope()
         {
             WindsorLifeTimeScope = new DefaultLifetimeScope();
-            Children = new List<MsLifetimeScope>();
+            _children = new List<MsLifetimeScope>();
 
             _transientBurdens = new HashSet<Burden>();
             _disposed = new ThreadSafeFlag();
@@ -61,6 +61,22 @@ namespace Castle.Windsor.MsDependencyInjection
             _transientBurdens.Remove(burden);
         }
 
+        public void AddChild(MsLifetimeScope lifetimeScope)
+        {
+            lock (_children)
+            {
+                _children.Add(lifetimeScope);
+            }
+        }
+
+        public void RemoveChild(MsLifetimeScope lifetimeScope)
+        {
+            lock (_children)
+            {
+                _children.Remove(lifetimeScope);
+            }
+        }
+
         public void Dispose()
         {
             if (!_disposed.Signal())
@@ -68,9 +84,14 @@ namespace Castle.Windsor.MsDependencyInjection
                 return;
             }
 
-            foreach (var child in Children)
+            lock (_children)
             {
-                child.Dispose();
+                foreach (var child in _children)
+                {
+                    child.Dispose();
+                }
+
+                _children.Clear();
             }
 
             WindsorLifeTimeScope.Dispose();
