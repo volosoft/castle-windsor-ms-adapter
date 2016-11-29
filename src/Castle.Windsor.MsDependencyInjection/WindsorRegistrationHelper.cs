@@ -48,6 +48,9 @@ namespace Castle.Windsor.MsDependencyInjection
             // Since some of these types are optional, Windsor must also return empty collections.
             container.Kernel.Resolver.AddSubResolver(new CollectionResolver(container.Kernel, allowEmptyCollections: true));
 
+            //Workaround for Options resolve problem. See https://github.com/aspnetboilerplate/aspnetboilerplate/issues/1563#issuecomment-261654317
+            container.Kernel.Resolver.AddSubResolver(new WindsorOptionsSubResolver(container.Kernel));
+
             //Register existing services
             foreach (var serviceDescriptor in services)
             {
