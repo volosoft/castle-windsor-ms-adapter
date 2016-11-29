@@ -15,6 +15,12 @@ namespace Castle.Windsor.MsDependencyInjection
         /// <returns>A Castle Windsor specific service provider.</returns>
         public static IServiceProvider CreateServiceProvider(IWindsorContainer container, IServiceCollection services)
         {
+            AddServices(container, services);
+            return container.Resolve<IServiceProvider>();
+        }
+
+        internal static void AddServices(IWindsorContainer container, IServiceCollection services)
+        {
             //Register base services
             container.Register(
 
@@ -35,7 +41,7 @@ namespace Castle.Windsor.MsDependencyInjection
                 Component.For<IServiceProvider>()
                     .ImplementedBy<ScopedWindsorServiceProvider>()
                     .LifestyleTransient()
-                     
+
                 );
 
             // ASP.NET Core uses IEnumerable<T> to resolve a list of types.
@@ -45,10 +51,14 @@ namespace Castle.Windsor.MsDependencyInjection
             //Register existing services
             foreach (var serviceDescriptor in services)
             {
+                if (serviceDescriptor.ImplementationInstance == container)
+                {
+                    //Already registered before
+                    continue;
+                }
+
                 RegisterServiceDescriptor(container, serviceDescriptor);
             }
-
-            return container.Resolve<IServiceProvider>();
         }
 
         private static void RegisterServiceDescriptor(IWindsorContainer container, ServiceDescriptor serviceDescriptor)
@@ -72,7 +82,7 @@ namespace Castle.Windsor.MsDependencyInjection
                         .ConfigureLifecycle(serviceDescriptor.Lifetime));
             }
             else if (serviceDescriptor.ImplementationFactory != null)
-            { 
+            {
                 var serviceDescriptorRef = serviceDescriptor;
                 container.Register(
                     Component.For(serviceDescriptor.ServiceType)
