@@ -1,5 +1,5 @@
-# Castle Windsor Microsoft.Extensions.DependencyInjection Adapter
-This library is a Castle Windsor adapter for Microsoft.Extensions.DependencyInjection nuget package.
+# Castle Windsor ASP.NET Core / Microsoft.Extensions.DependencyInjection Adapter
+This library is a Castle Windsor adapter for Microsoft.Extensions.DependencyInjection nuget package. It works for ASP.NET Core and other type of applications.
 
 ## How To Use?
 
@@ -8,7 +8,7 @@ This library is a Castle Windsor adapter for Microsoft.Extensions.DependencyInje
 `Install-Package Castle.Windsor.MsDependencyInjection`
 
 2. Change Startup Class
-Open your Startup class and add these using statements:
+For ASP.NET Core, open your Startup class and add these using statements:
 
 ````C#
 using Castle.Windsor;
