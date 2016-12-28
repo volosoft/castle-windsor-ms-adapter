@@ -98,6 +98,21 @@ namespace Castle.Windsor.MsDependencyInjection.Tests
             _disposeCounter.Get<MyTestClass3>().ShouldBe(1);
         }
 
+        [Fact]
+        public void Should_Resolve_Same_Object_In_Same_Scope_For_Scoped_Lifestyle()
+        {
+            var collection = new ServiceCollection();
+            collection.AddScoped<MyTestClass3>();
+            var serviceProvider = CreateServiceProvider(collection);
+
+            using (var scope = serviceProvider.CreateScope())
+            {
+                var obj1 = scope.ServiceProvider.GetRequiredService<MyTestClass3>();
+                var obj2 = scope.ServiceProvider.GetRequiredService<MyTestClass3>();
+                obj1.ShouldBeSameAs(obj2);
+            }
+        }
+
         public void Dispose()
         {
             Assert.Null(MsLifetimeScope.Current);
