@@ -2,7 +2,7 @@
   "version": "1.3.0-*",
 
   "dependencies": {
-    "Castle.Windsor": "3.3.0",
+    "Castle.Windsor": "3.4.0",
     "Microsoft.Extensions.DependencyInjection": "1.1.0",
     "Microsoft.Extensions.Options": "1.1.0"
   },
