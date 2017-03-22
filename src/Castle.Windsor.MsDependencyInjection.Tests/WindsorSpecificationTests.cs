@@ -1,4 +1,6 @@
 ﻿using System;
+using Castle.Core;
+using Castle.DynamicProxy;
 using Castle.MicroKernel.Registration;
 using Castle.Windsor.MsDependencyInjection.Tests.TestClasses;
 using Microsoft.Extensions.DependencyInjection;
@@ -113,9 +115,58 @@ namespace Castle.Windsor.MsDependencyInjection.Tests
             }
         }
 
+        [Fact]
+        public void ResolvingAndDisposingWithIInterceptorShouldWork()
+        {
+            var collection = new ServiceCollection();
+
+            collection.AddScoped<MyTestClass1>();
+
+            var serviceProvider = CreateServiceProvider(collection);
+            var windsorContainer = serviceProvider.GetService<IWindsorContainer>();
+
+            windsorContainer.Register(Component.For<MyTestInterceptor>().LifestyleTransient());
+
+            windsorContainer.Register(Component.For<MyTestClass2>().LifestyleTransient());
+
+            windsorContainer.Register(
+                Component
+                    .For<MyTestClass3>()
+                    .Interceptors<MyTestInterceptor>()
+                    .LifestyleTransient()
+            );
+
+            using (var scope = serviceProvider.CreateScope())
+            {
+                var test1 = scope.ServiceProvider.GetService<MyTestClass1>();
+
+                _disposeCounter.Get<MyTestClass1>().ShouldBe(0);
+                _disposeCounter.Get<MyTestClass2>().ShouldBe(0);
+                _disposeCounter.Get<MyTestClass3>().ShouldBe(0);
+
+                windsorContainer.Release(test1);
+            }
+
+            _disposeCounter.Get<MyTestClass1>().ShouldBe(1);
+            _disposeCounter.Get<MyTestClass2>().ShouldBe(1);
+            _disposeCounter.Get<MyTestClass3>().ShouldBe(1);
+        }
+
         public void Dispose()
         {
             Assert.Null(MsLifetimeScope.Current);
+        }
+    }
+
+    public class MyTestInterceptor : IInterceptor, IDisposable
+    {
+        public void Intercept(IInvocation invocation)
+        {
+            invocation.Proceed();
+        }
+
+        public void Dispose()
+        {
         }
     }
 }

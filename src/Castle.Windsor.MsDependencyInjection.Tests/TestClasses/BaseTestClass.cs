@@ -11,14 +11,21 @@ namespace Castle.Windsor.MsDependencyInjection.Tests.TestClasses
 
         public virtual void Dispose()
         {
+            var type = GetType();
+
+            if (type.Namespace.StartsWith("Castle.Proxies"))
+            {
+                type = type.BaseType;
+            }
+
             if (IsDisposed)
             {
-                throw new ObjectDisposedException(GetType().FullName, "This object is already disposed!");
+                throw new ObjectDisposedException(type.FullName, "This object is already disposed!");
             }
 
             IsDisposed = true;
 
-            DisposeCounter.Increment(GetType());
+            DisposeCounter.Increment(type);
         }
     }
 }
