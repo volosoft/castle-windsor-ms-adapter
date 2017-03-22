@@ -143,8 +143,6 @@ namespace Castle.Windsor.MsDependencyInjection.Tests
                 _disposeCounter.Get<MyTestClass1>().ShouldBe(0);
                 _disposeCounter.Get<MyTestClass2>().ShouldBe(0);
                 _disposeCounter.Get<MyTestClass3>().ShouldBe(0);
-
-                windsorContainer.Release(test1);
             }
 
             _disposeCounter.Get<MyTestClass1>().ShouldBe(1);
