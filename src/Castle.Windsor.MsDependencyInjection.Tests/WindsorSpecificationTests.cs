@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Linq;
 using Castle.Core;
 using Castle.DynamicProxy;
 using Castle.MicroKernel.Registration;
@@ -148,6 +150,28 @@ namespace Castle.Windsor.MsDependencyInjection.Tests
             _disposeCounter.Get<MyTestClass1>().ShouldBe(1);
             _disposeCounter.Get<MyTestClass2>().ShouldBe(1);
             _disposeCounter.Get<MyTestClass3>().ShouldBe(1);
+        }
+
+        [Fact]
+        public void Should_Resolve_Registered_Enumerable()
+        {
+            var collection = new ServiceCollection();
+
+            collection.AddSingleton((IEnumerable<MyTestClass3>) new List<MyTestClass3>
+            {
+                new MyTestClass3(),
+                new MyTestClass3(),
+                new MyTestClass3()
+            });
+
+            var serviceProvider = CreateServiceProvider(collection);
+
+            using (var scope = serviceProvider.CreateScope())
+            {
+                var singletonEnumerable = scope.ServiceProvider.GetService<IEnumerable<MyTestClass3>>();
+                var list = singletonEnumerable.ToList();
+                list.Count.ShouldBe(3);
+            }
         }
 
         public void Dispose()
