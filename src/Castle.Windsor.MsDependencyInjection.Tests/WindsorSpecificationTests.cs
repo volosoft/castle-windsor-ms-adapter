@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using Castle.Core;
-using Castle.DynamicProxy;
 using Castle.MicroKernel.Registration;
 using Castle.Windsor.MsDependencyInjection.Tests.TestClasses;
 using Microsoft.Extensions.DependencyInjection;
@@ -164,6 +163,8 @@ namespace Castle.Windsor.MsDependencyInjection.Tests
                 new MyTestClass3()
             });
 
+            collection.AddTransient<MyClassInjectsEnumerable>();
+
             var serviceProvider = CreateServiceProvider(collection);
 
             using (var scope = serviceProvider.CreateScope())
@@ -171,24 +172,15 @@ namespace Castle.Windsor.MsDependencyInjection.Tests
                 var singletonEnumerable = scope.ServiceProvider.GetService<IEnumerable<MyTestClass3>>();
                 var list = singletonEnumerable.ToList();
                 list.Count.ShouldBe(3);
+
+                var injectedObj = scope.ServiceProvider.GetService<MyClassInjectsEnumerable>();
+                injectedObj.Objects.Count.ShouldBe(3);
             }
         }
 
         public void Dispose()
         {
             Assert.Null(MsLifetimeScope.Current);
-        }
-    }
-
-    public class MyTestInterceptor : IInterceptor, IDisposable
-    {
-        public void Intercept(IInvocation invocation)
-        {
-            invocation.Proceed();
-        }
-
-        public void Dispose()
-        {
         }
     }
 }

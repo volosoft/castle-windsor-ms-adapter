@@ -5,11 +5,11 @@ using Microsoft.Extensions.Options;
 
 namespace Castle.Windsor.MsDependencyInjection
 {
-    public class WindsorOptionsSubResolver : ISubDependencyResolver
+    public class MsOptionsSubResolver : ISubDependencyResolver
     {
         private readonly IKernel _kernel;
 
-        public WindsorOptionsSubResolver(IKernel kernel)
+        public MsOptionsSubResolver(IKernel kernel)
         {
             _kernel = kernel;
         }

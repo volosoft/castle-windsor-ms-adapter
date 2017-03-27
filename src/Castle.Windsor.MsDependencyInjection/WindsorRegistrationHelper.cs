@@ -46,10 +46,10 @@ namespace Castle.Windsor.MsDependencyInjection
 
             // ASP.NET Core uses IEnumerable<T> to resolve a list of types.
             // Since some of these types are optional, Windsor must also return empty collections.
-            container.Kernel.Resolver.AddSubResolver(new CollectionResolver(container.Kernel, allowEmptyCollections: true));
+            container.Kernel.Resolver.AddSubResolver(new MsCompatibleCollectionResolver(container.Kernel));
 
             //Workaround for Options resolve problem. See https://github.com/aspnetboilerplate/aspnetboilerplate/issues/1563#issuecomment-261654317
-            container.Kernel.Resolver.AddSubResolver(new WindsorOptionsSubResolver(container.Kernel));
+            container.Kernel.Resolver.AddSubResolver(new MsOptionsSubResolver(container.Kernel));
 
             //Register existing services
             foreach (var serviceDescriptor in services)
