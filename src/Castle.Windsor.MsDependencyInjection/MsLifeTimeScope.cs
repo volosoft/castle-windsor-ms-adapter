@@ -23,7 +23,7 @@ namespace Castle.Windsor.MsDependencyInjection
 
         [ThreadStatic]
         private static MsLifetimeScope _current;
-#elif NET461
+#else
         public static MsLifetimeScope Current
         {
             get { return _current.Value; }

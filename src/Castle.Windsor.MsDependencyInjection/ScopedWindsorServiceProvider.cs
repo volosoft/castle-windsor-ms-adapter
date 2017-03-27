@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Castle.Windsor.MsDependencyInjection
@@ -42,7 +43,7 @@ namespace Castle.Windsor.MsDependencyInjection
                 // MS uses GetService<IEnumerable<TService>>() to get a collection.
                 // This must be resolved with IWindsorContainer.ResolveAll();
 
-                if (serviceType.IsGenericType && serviceType.GetGenericTypeDefinition() == typeof(IEnumerable<>))
+                if (serviceType.GetTypeInfo().IsGenericType && serviceType.GetGenericTypeDefinition() == typeof(IEnumerable<>))
                 {
                     var allObjects = _container.ResolveAll(serviceType.GenericTypeArguments[0]);
                     Array.Reverse(allObjects);

@@ -1,3 +1,4 @@
+using System.Reflection;
 using Castle.Core;
 using Castle.MicroKernel;
 using Castle.MicroKernel.Context;
@@ -16,7 +17,7 @@ namespace Castle.Windsor.MsDependencyInjection
 
         public bool CanResolve(CreationContext context, ISubDependencyResolver contextHandlerResolver, ComponentModel model, DependencyModel dependency)
         {
-            return dependency.TargetType.IsGenericType && dependency.TargetType.GetGenericTypeDefinition() == typeof(IOptions<>);
+            return dependency.TargetType.GetTypeInfo().IsGenericType && dependency.TargetType.GetGenericTypeDefinition() == typeof(IOptions<>);
         }
 
         public object Resolve(CreationContext context, ISubDependencyResolver contextHandlerResolver, ComponentModel model, DependencyModel dependency)
