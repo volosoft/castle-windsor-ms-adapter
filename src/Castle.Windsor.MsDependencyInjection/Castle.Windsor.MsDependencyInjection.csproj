@@ -1,0 +1,36 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <VersionPrefix>1.3.3</VersionPrefix>
+    <TargetFrameworks>net452;net461</TargetFrameworks>
+    <AssemblyName>Castle.Windsor.MsDependencyInjection</AssemblyName>
+    <PackageId>Castle.Windsor.MsDependencyInjection</PackageId>
+    <PackageTags>Windsor;Castle;AspNetCore;DI;IoC;DNX;DependencyInjection;Extensions</PackageTags>
+    <PackageProjectUrl>https://github.com/volosoft/castle-windsor-ms-adapter</PackageProjectUrl>
+    <PackageLicenseUrl>https://github.com/volosoft/castle-windsor-ms-adapter/blob/master/LICENSE</PackageLicenseUrl>
+    <RepositoryType>git</RepositoryType>
+    <RepositoryUrl>https://github.com/volosoft/castle-windsor-ms-adapter</RepositoryUrl>
+    <GenerateAssemblyConfigurationAttribute>false</GenerateAssemblyConfigurationAttribute>
+    <GenerateAssemblyCompanyAttribute>false</GenerateAssemblyCompanyAttribute>
+    <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Castle.Windsor" Version="3.4.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="1.1.0" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="1.1.1" />
+  </ItemGroup>
+
+  <ItemGroup Condition=" '$(TargetFramework)' == 'net452' ">
+    <Reference Include="System.Runtime" />
+    <Reference Include="System" />
+    <Reference Include="Microsoft.CSharp" />
+  </ItemGroup>
+
+  <ItemGroup Condition=" '$(TargetFramework)' == 'net461' ">
+    <Reference Include="System.Runtime" />
+    <Reference Include="System" />
+    <Reference Include="Microsoft.CSharp" />
+  </ItemGroup>
+
+</Project>
