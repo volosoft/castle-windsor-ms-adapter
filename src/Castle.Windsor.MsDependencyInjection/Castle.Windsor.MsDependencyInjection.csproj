@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <Version>2.0.0</Version>
+    <Version>2.0.1</Version>
     <TargetFrameworks>net452;net461;netstandard1.5</TargetFrameworks>
     <AssemblyName>Castle.Windsor.MsDependencyInjection</AssemblyName>
     <PackageId>Castle.Windsor.MsDependencyInjection</PackageId>
@@ -38,7 +38,7 @@
     <Reference Include="System.Runtime" />
     <Reference Include="System" />
     <Reference Include="Microsoft.CSharp" />
-    <PackageReference Include="Fortress.Windsor" Version="0.5.0" />
+    <PackageReference Include="Fortress.Windsor" Version="0.6.0" />
   </ItemGroup>
 
 </Project>

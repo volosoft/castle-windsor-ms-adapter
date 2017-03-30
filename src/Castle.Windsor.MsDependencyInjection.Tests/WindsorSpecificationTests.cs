@@ -11,6 +11,7 @@ using Xunit;
 
 namespace Castle.Windsor.MsDependencyInjection.Tests
 {
+    //TODO: Base unit test does not work currently!
     public class WindsorSpecificationTests : DependencyInjectionSpecificationTests, IDisposable
     {
         private DisposeCounter _disposeCounter;
