@@ -75,8 +75,8 @@ namespace Castle.Windsor.MsDependencyInjection.Tests
             testObj1.IsDisposed.ShouldBeTrue();
 
             _disposeCounter.Get<MyTestClass1>().ShouldBe(1);
-            _disposeCounter.Get<MyTestClass2>().ShouldBe(1);
-            _disposeCounter.Get<MyTestClass3>().ShouldBe(1);
+            _disposeCounter.Get<MyTestClass2>().ShouldBe(0);
+            _disposeCounter.Get<MyTestClass3>().ShouldBe(0);
         }
 
         [Fact]
@@ -177,6 +177,24 @@ namespace Castle.Windsor.MsDependencyInjection.Tests
                 var injectedObj = scope.ServiceProvider.GetService<MyClassInjectsEnumerable>();
                 injectedObj.Objects.Count.ShouldBe(3);
             }
+        }
+
+        [Fact]
+        public void Resolving_Scoped_Test()
+        {
+            var collection = new ServiceCollection();
+
+            collection.AddScoped<MyTestClass3>();
+
+            var serviceProvider = CreateServiceProvider(collection);
+            var windsorContainer = serviceProvider.GetService<IWindsorContainer>();
+
+            var obj1 = serviceProvider.GetService<MyTestClass3>();
+            var obj2 = serviceProvider.GetService<MyTestClass3>();
+            var obj3 = windsorContainer.Resolve<MyTestClass3>();
+
+            obj1.ShouldBeSameAs(obj2);
+            obj1.ShouldBeSameAs(obj3);
         }
 
         public void Dispose()

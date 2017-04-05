@@ -1,4 +1,5 @@
-﻿using Castle.MicroKernel;
+﻿using Castle.Core;
+using Castle.MicroKernel;
 using Castle.MicroKernel.Context;
 using Castle.MicroKernel.Lifestyle;
 
@@ -10,20 +11,29 @@ namespace Castle.Windsor.MsDependencyInjection
     /// </summary>
     public class MsScopedLifestyleManager : ScopedLifestyleManager
     {
+        private GlobalMsLifetimeScopeProvider _globalMsLifetimeScopeProvider;
+
         public MsScopedLifestyleManager()
             : base(new MsScopedAccesor())
         {
 
         }
 
+        public override void Init(IComponentActivator componentActivator, IKernel kernel, ComponentModel model)
+        {
+            _globalMsLifetimeScopeProvider = kernel.Resolve<GlobalMsLifetimeScopeProvider>();
+
+            base.Init(componentActivator, kernel, model);
+        }
+
         public override object Resolve(CreationContext context, IReleasePolicy releasePolicy)
         {
             if (MsLifetimeScope.Current == null)
             {
-                //Act as transient!
-                var burden = CreateInstance(context, false);
-                Track(burden, releasePolicy);
-                return burden.Instance;
+                using (MsLifetimeScope.Using(_globalMsLifetimeScopeProvider.LifetimeScope))
+                {
+                    return base.Resolve(context, releasePolicy);
+                }
             }
 
             return base.Resolve(context, releasePolicy);
