@@ -15,7 +15,11 @@ namespace Castle.Windsor.MsDependencyInjection
         public static IServiceProvider CreateServiceProvider(IWindsorContainer container, IServiceCollection services)
         {
             AddServices(container, services);
-            return container.Resolve<IServiceProvider>();
+
+            using (MsLifetimeScope.Using(container.Resolve<GlobalMsLifetimeScope>()))
+            {
+                return container.Resolve<IServiceProvider>();
+            }
         }
 
         internal static void AddServices(IWindsorContainer container, IServiceCollection services)
@@ -27,7 +31,7 @@ namespace Castle.Windsor.MsDependencyInjection
                     .Instance(container)
                     .LifestyleSingleton(),
 
-                Component.For<GlobalMsLifetimeScopeProvider>()
+                Component.For<GlobalMsLifetimeScope>()
                     .LifestyleSingleton(),
 
                 Component.For<MsLifetimeScopeProvider>()
@@ -111,13 +115,13 @@ namespace Castle.Windsor.MsDependencyInjection
             switch (serviceLifetime)
             {
                 case ServiceLifetime.Transient:
-                    registrationBuilder.LifestyleCustom<MsScopedTransientLifestyleManager>();
+                    registrationBuilder.LifestyleTransient();
                     break;
                 case ServiceLifetime.Scoped:
                     registrationBuilder.LifestyleCustom<MsScopedLifestyleManager>();
                     break;
                 case ServiceLifetime.Singleton:
-                    registrationBuilder.LifestyleCustom<MyScopedSingletonLifestyleManager>();
+                    registrationBuilder.LifestyleSingleton();
                     break;
                 default:
                     throw new NotImplementedException("Unknown ServiceLifetime: " + serviceLifetime);

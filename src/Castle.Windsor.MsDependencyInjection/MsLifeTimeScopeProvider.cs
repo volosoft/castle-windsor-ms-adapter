@@ -5,12 +5,11 @@ namespace Castle.Windsor.MsDependencyInjection
     /// </summary>
     public class MsLifetimeScopeProvider 
     {
-        public MsLifetimeScope LifetimeScope { get; }
+        public IMsLifetimeScope LifetimeScope { get; }
 
-        public MsLifetimeScopeProvider(GlobalMsLifetimeScopeProvider globalMsLifetimeScopeProvider)
+        public MsLifetimeScopeProvider()
         {
-            LifetimeScope = MsLifetimeScope.Current ??
-                            globalMsLifetimeScopeProvider.LifetimeScope;
+            LifetimeScope = MsLifetimeScope.Current;
         }
     }
 }

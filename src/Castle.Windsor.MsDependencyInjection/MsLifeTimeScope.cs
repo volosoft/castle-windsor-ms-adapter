@@ -1,64 +1,68 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using Castle.Core.Internal;
-using Castle.MicroKernel;
 using Castle.MicroKernel.Lifestyle.Scoped;
 
 namespace Castle.Windsor.MsDependencyInjection
 {
+    public interface IMsLifetimeScope
+    {
+        ILifetimeScope WindsorLifeTimeScope { get; }
+        void AddInstance(object instance);
+        void AddChild(MsLifetimeScope lifetimeScope);
+        void RemoveChild(MsLifetimeScope lifetimeScope);
+        void Dispose();
+    }
+
     /// <summary>
     /// Wrapper for Windsor lifetime infrastructure.
     /// </summary>
-    public class MsLifetimeScope
+    public class MsLifetimeScope : IMsLifetimeScope
     {
 
 #if NET452
-        public static MsLifetimeScope Current
+        public static IMsLifetimeScope Current
         {
             get { return _current; }
             set { _current = value; }
         }
 
         [ThreadStatic]
-        private static MsLifetimeScope _current;
+        private static IMsLifetimeScope _current;
 #else
-        public static MsLifetimeScope Current
+        public static IMsLifetimeScope Current
         {
             get { return _current.Value; }
             set { _current.Value = value; }
         }
 
-        private static readonly AsyncLocal<MsLifetimeScope> _current = new AsyncLocal<MsLifetimeScope>();
+        private static readonly AsyncLocal<IMsLifetimeScope> _current = new AsyncLocal<IMsLifetimeScope>();
 #endif
 
         public ILifetimeScope WindsorLifeTimeScope { get; }
 
         private readonly List<MsLifetimeScope> _children;
 
-        private readonly HashSet<Burden> _transientBurdens;
+        private readonly HashSet<object> _resolvedInstances;
+        private readonly IWindsorContainer _container;
 
         private ThreadSafeFlag _disposed;
 
-        public MsLifetimeScope()
+        public MsLifetimeScope(IWindsorContainer container)
         {
-            WindsorLifeTimeScope = new DefaultLifetimeScope();
-            _children = new List<MsLifetimeScope>();
+            _container = container;
 
-            _transientBurdens = new HashSet<Burden>();
+            WindsorLifeTimeScope = new DefaultLifetimeScope();
+
+            _children = new List<MsLifetimeScope>();
+            _resolvedInstances = new HashSet<object>();
             _disposed = new ThreadSafeFlag();
         }
 
-        public void Track(Burden transientBurden)
+        public void AddInstance(object instance)
         {
-            _transientBurdens.Add(transientBurden);
-            transientBurden.Releasing += TransientBurden_Releasing;
-        }
-
-        private void TransientBurden_Releasing(Burden burden)
-        {
-            _transientBurdens.Remove(burden);
+            _resolvedInstances.Add(instance);
         }
 
         public void AddChild(MsLifetimeScope lifetimeScope)
@@ -94,18 +98,15 @@ namespace Castle.Windsor.MsDependencyInjection
                 _children.Clear();
             }
 
-            WindsorLifeTimeScope.Dispose();
-
-            foreach (var burden in _transientBurdens.Reverse().ToList())
+            foreach (var instance in _resolvedInstances)
             {
-                if (_transientBurdens.Contains(burden))
-                {
-                    burden.Release();
-                }
+                _container.Release(instance);
             }
+
+            WindsorLifeTimeScope.Dispose();
         }
 
-        public static IDisposable Using(MsLifetimeScope newLifetimeScope)
+        public static IDisposable Using(IMsLifetimeScope newLifetimeScope)
         {
             var previous = Current;
             Current = newLifetimeScope;

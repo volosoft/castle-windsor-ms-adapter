@@ -12,13 +12,13 @@ namespace Castle.Windsor.MsDependencyInjection
 
         public MsLifetimeScope LifetimeScope { get; }
 
-        private readonly MsLifetimeScope _parentLifetimeScope;
+        private readonly IMsLifetimeScope _parentLifetimeScope;
 
-        public WindsorServiceScope(IWindsorContainer container, MsLifetimeScope currentMsLifetimeScope)
+        public WindsorServiceScope(IWindsorContainer container, IMsLifetimeScope currentMsLifetimeScope)
         {
             _parentLifetimeScope = currentMsLifetimeScope;
 
-            LifetimeScope = new MsLifetimeScope();
+            LifetimeScope = new MsLifetimeScope(container);
 
             _parentLifetimeScope?.AddChild(LifetimeScope);
 
