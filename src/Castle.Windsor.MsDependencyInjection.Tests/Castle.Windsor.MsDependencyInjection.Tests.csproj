@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <VersionPrefix>1.3.0</VersionPrefix>
-    <TargetFramework>net461</TargetFramework>
+    <TargetFramework>netcoreapp1.0</TargetFramework>
     <AssemblyName>Castle.Windsor.MsDependencyInjection.Tests</AssemblyName>
     <PackageId>Castle.Windsor.MsDependencyInjection.Tests</PackageId>
     <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>

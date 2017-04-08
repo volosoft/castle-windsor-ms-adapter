@@ -1,6 +1,5 @@
 ﻿using System;
 using Castle.MicroKernel.Registration;
-using Castle.MicroKernel.Resolvers.SpecializedResolvers;
 using Microsoft.Extensions.DependencyInjection;
 using ServiceDescriptor = Microsoft.Extensions.DependencyInjection.ServiceDescriptor;
 

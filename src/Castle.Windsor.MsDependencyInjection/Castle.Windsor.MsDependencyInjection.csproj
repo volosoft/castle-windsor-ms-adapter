@@ -53,7 +53,7 @@
     <Reference Include="System.Runtime" />
     <Reference Include="System" />
     <Reference Include="Microsoft.CSharp" />
-    <PackageReference Include="Fortress.Windsor" Version="0.5.175" />
+    <PackageReference Include="Fortress.Windsor" Version="0.5.265" />
   </ItemGroup>
 
 </Project>

@@ -13,12 +13,7 @@ namespace Castle.Windsor.MsDependencyInjection
         protected override Burden CreateInstance(CreationContext context, bool trackedExternally)
         {
             var burden = base.CreateInstance(context, trackedExternally);
-
-            if (MsLifetimeScope.Current != null)
-            {
-                MsLifetimeScope.Current.Track(burden);
-            }
-
+            MsLifetimeScope.Current?.Track(burden);
             return burden;
         }
 

@@ -95,7 +95,14 @@ namespace Castle.Windsor.MsDependencyInjection
             }
 
             WindsorLifeTimeScope.Dispose();
-            _transientBurdens.Reverse().ToList().ForEach(b => b.Release());
+
+            foreach (var burden in _transientBurdens.Reverse().ToList())
+            {
+                if (_transientBurdens.Contains(burden))
+                {
+                    burden.Release();
+                }
+            }
         }
 
         public static IDisposable Using(MsLifetimeScope newLifetimeScope)

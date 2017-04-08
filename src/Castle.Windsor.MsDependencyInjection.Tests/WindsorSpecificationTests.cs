@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Castle.Core;
 using Castle.MicroKernel.Registration;
+using Castle.Windsor.Installer;
 using Castle.Windsor.MsDependencyInjection.Tests.TestClasses;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Specification;
@@ -11,14 +12,13 @@ using Xunit;
 
 namespace Castle.Windsor.MsDependencyInjection.Tests
 {
-    //TODO: Base unit test does not work currently!
     public class WindsorSpecificationTests : DependencyInjectionSpecificationTests, IDisposable
     {
         private DisposeCounter _disposeCounter;
 
         protected override IServiceProvider CreateServiceProvider(IServiceCollection serviceCollection)
         {
-            var windsorContainer = new WindsorContainer();
+            var windsorContainer = new MsCompatibleWindsorContainer();
 
             windsorContainer.Register(Component.For<DisposeCounter>().LifestyleSingleton());
 
@@ -150,6 +150,70 @@ namespace Castle.Windsor.MsDependencyInjection.Tests
             _disposeCounter.Get<MyTestClass1>().ShouldBe(1);
             _disposeCounter.Get<MyTestClass2>().ShouldBe(1);
             _disposeCounter.Get<MyTestClass3>().ShouldBe(1);
+        }
+
+        [Fact]
+        public void ResolvingAndDisposingWithIInterceptorShouldWorkForTransient()
+        {
+            var collection = new ServiceCollection();
+
+            var serviceProvider = CreateServiceProvider(collection);
+            var windsorContainer = serviceProvider.GetService<IWindsorContainer>();
+
+            windsorContainer.Register(
+                Component.For<MyTestInterceptor>().LifestyleTransient(),
+                Component.For<MyTestClass2>().LifestyleTransient(),
+                Component.For<MyTestClass3>().Interceptors<MyTestInterceptor>().LifestyleTransient()
+            );
+
+            using (var scope = serviceProvider.CreateScope())
+            {
+                var test1 = scope.ServiceProvider.GetService<MyTestClass2>();
+
+                _disposeCounter.Get<MyTestClass2>().ShouldBe(0);
+                _disposeCounter.Get<MyTestClass3>().ShouldBe(0);
+            }
+
+            _disposeCounter.Get<MyTestClass2>().ShouldBe(1);
+            _disposeCounter.Get<MyTestClass3>().ShouldBe(1);
+        }
+
+        [Fact]
+        public void ResolvingAndDisposingWithIInterceptorShouldWorkForTransientDirectlyFromContainer()
+        {
+            var collection = new ServiceCollection();
+
+            var serviceProvider = CreateServiceProvider(collection);
+            var windsorContainer = serviceProvider.GetService<IWindsorContainer>();
+
+            windsorContainer.Register(
+                Component.For<MyTestInterceptor>().LifestyleTransient(),
+                Component.For<MyTestClass2>().LifestyleTransient(),
+                Component.For<MyTestClass3>().Interceptors<MyTestInterceptor>().LifestyleTransient()
+            );
+
+            var test1 = windsorContainer.Resolve<MyTestClass2>();
+            _disposeCounter.Get<MyTestClass2>().ShouldBe(0);
+            _disposeCounter.Get<MyTestClass3>().ShouldBe(0);
+
+            windsorContainer.Release(test1);
+            _disposeCounter.Get<MyTestClass2>().ShouldBe(1);
+            _disposeCounter.Get<MyTestClass3>().ShouldBe(1);
+        }
+
+        [Fact]
+        public void Windsor_Dispose_Test_With_Interceptor()
+        {
+            var windsorContainer = new WindsorContainer();
+            windsorContainer.Register(
+                Component.For<DisposeCounter>().LifestyleSingleton(),
+                Component.For<MyTestInterceptor>().LifestyleCustom<MsScopedTransientLifestyleManager>(),//.LifestyleTransient(),
+                Component.For<MyTestClass2>().LifestyleCustom<MsScopedTransientLifestyleManager>(),//.LifestyleTransient(),
+                Component.For<MyTestClass3>().LifestyleCustom<MsScopedTransientLifestyleManager>()//.Interceptors<MyTestInterceptor>().LifestyleTransient()
+            );
+
+            var obj = windsorContainer.Resolve<MyTestClass2>();
+            windsorContainer.Release(obj);
         }
 
         [Fact]
