@@ -18,7 +18,9 @@ namespace Castle.Windsor.MsDependencyInjection
 
         public override object Resolve(CreationContext context, IReleasePolicy releasePolicy)
         {
-            if (MsLifetimeScope.Current == null)
+            var currentScope = MsLifetimeScope.Current;
+
+            if (currentScope == null)
             {
                 //Act as transient!
                 var burden = CreateInstance(context, false);
@@ -30,7 +32,10 @@ namespace Castle.Windsor.MsDependencyInjection
                 return burden.Instance;
             }
 
-            return base.Resolve(context, releasePolicy);
+            lock (currentScope)
+            {
+                return base.Resolve(context, releasePolicy);
+            }
         }
     }
 }
