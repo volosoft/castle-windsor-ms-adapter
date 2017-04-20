@@ -1,9 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Castle.MicroKernel.Registration;
 using Castle.Windsor.MsDependencyInjection.Tests.TestClasses;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.DependencyInjection.Specification;
 using Microsoft.Extensions.DependencyInjection.Specification.Fakes;
 using Shouldly;
@@ -320,7 +323,6 @@ namespace Castle.Windsor.MsDependencyInjection.Tests
             var collection = new ServiceCollection();
 
             collection.AddScoped<MyTestClass3>();
-
             var serviceProvider = CreateServiceProvider(collection);
             var windsorContainer = serviceProvider.GetService<IWindsorContainer>();
 
@@ -336,6 +338,28 @@ namespace Castle.Windsor.MsDependencyInjection.Tests
             }
 
             obj.IsDisposed.ShouldBeTrue();
+        }
+
+        [Fact]
+        public void Resolving_On_Same_Scope_Should_Be_Thread_Safe()
+        {
+            var serviceCollection = new ServiceCollection();
+            serviceCollection.TryAddEnumerable(new ServiceCollection()
+                .AddScoped<IEntityStateListener, INavigationFixer>(p => p.GetService<INavigationFixer>())
+                .AddScoped<INavigationListener, INavigationFixer>(p => p.GetService<INavigationFixer>())
+            );
+
+            serviceCollection.TryAdd(new ServiceCollection()
+                .AddScoped<INavigationFixer, NavigationFixer>()
+            );
+
+            var serviceProvider = CreateServiceProvider(serviceCollection);
+
+            Parallel.For(1, 100, (i) =>
+            {
+                var listener = serviceProvider.GetRequiredService<INavigationListener>();
+                (listener is NavigationFixer).ShouldBeTrue();
+            });
         }
 
         //TODO: TEST - Globally resolved objects should be disposed when the container is disposed?
