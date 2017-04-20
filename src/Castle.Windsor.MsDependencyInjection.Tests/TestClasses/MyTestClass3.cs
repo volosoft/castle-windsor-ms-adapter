@@ -2,9 +2,6 @@
 {
     public class MyTestClass3 : BaseTestClass
     {
-        public override void Dispose()
-        {
-            base.Dispose();
-        }
+
     }
 }

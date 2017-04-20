@@ -1,18 +1,13 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 14
-VisualStudioVersion = 14.0.25123.0
+# Visual Studio 15
+VisualStudioVersion = 15.0.26228.9
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{1B54D75A-7285-495C-B824-277D8B2338D3}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{D62B4F6C-F6AF-4F8F-9617-9F470BDDD591}"
-	ProjectSection(SolutionItems) = preProject
-		global.json = global.json
-	EndProjectSection
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Castle.Windsor.MsDependencyInjection", "src\Castle.Windsor.MsDependencyInjection\Castle.Windsor.MsDependencyInjection.csproj", "{8AD07515-381C-44D4-82B7-A3EAA1600F8C}"
 EndProject
-Project("{8BB2217D-0F2D-49D1-97BC-3654ED321F3B}") = "Castle.Windsor.MsDependencyInjection", "src\Castle.Windsor.MsDependencyInjection\Castle.Windsor.MsDependencyInjection.xproj", "{8AD07515-381C-44D4-82B7-A3EAA1600F8C}"
-EndProject
-Project("{8BB2217D-0F2D-49D1-97BC-3654ED321F3B}") = "Castle.Windsor.MsDependencyInjection.Tests", "src\Castle.Windsor.MsDependencyInjection.Tests\Castle.Windsor.MsDependencyInjection.Tests.xproj", "{60939B95-9568-43A3-91DE-031C42A6DE31}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Castle.Windsor.MsDependencyInjection.Tests", "src\Castle.Windsor.MsDependencyInjection.Tests\Castle.Windsor.MsDependencyInjection.Tests.csproj", "{60939B95-9568-43A3-91DE-031C42A6DE31}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

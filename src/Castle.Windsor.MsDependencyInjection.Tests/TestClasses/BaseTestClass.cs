@@ -1,4 +1,5 @@
 using System;
+using System.Reflection;
 
 namespace Castle.Windsor.MsDependencyInjection.Tests.TestClasses
 {
@@ -11,11 +12,11 @@ namespace Castle.Windsor.MsDependencyInjection.Tests.TestClasses
 
         public virtual void Dispose()
         {
-            var type = GetType();
+            var type = GetType().GetTypeInfo();
 
             if (type.Namespace.StartsWith("Castle.Proxies"))
             {
-                type = type.BaseType;
+                type = type.BaseType.GetTypeInfo();
             }
 
             if (IsDisposed)
@@ -25,7 +26,7 @@ namespace Castle.Windsor.MsDependencyInjection.Tests.TestClasses
 
             IsDisposed = true;
 
-            DisposeCounter.Increment(type);
+            DisposeCounter.Increment(type.AsType());
         }
     }
 }

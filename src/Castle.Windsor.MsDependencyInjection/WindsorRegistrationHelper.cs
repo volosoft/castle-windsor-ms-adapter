@@ -1,6 +1,5 @@
 ﻿using System;
 using Castle.MicroKernel.Registration;
-using Castle.MicroKernel.Resolvers.SpecializedResolvers;
 using Microsoft.Extensions.DependencyInjection;
 using ServiceDescriptor = Microsoft.Extensions.DependencyInjection.ServiceDescriptor;
 
@@ -12,46 +11,85 @@ namespace Castle.Windsor.MsDependencyInjection
         /// Adds all given services from <see cref="Microsoft.Extensions.DependencyInjection"/> 
         /// to the Castle Windsor container.
         /// </summary>
-        /// <returns>A Castle Windsor specific service provider.</returns>
+        /// <returns>A Castle Windsor service provider.</returns>
         public static IServiceProvider CreateServiceProvider(IWindsorContainer container, IServiceCollection services)
         {
             AddServices(container, services);
-            return container.Resolve<IServiceProvider>();
+
+            using (MsLifetimeScope.Using(container.Resolve<GlobalMsLifetimeScope>()))
+            {
+                return container.Resolve<IServiceProvider>();
+            }
         }
 
-        internal static void AddServices(IWindsorContainer container, IServiceCollection services)
+        /// <summary>
+        /// Used to add services to an existing container, without creating a <see cref="IServiceProvider"/>.
+        /// </summary>
+        public static void AddServices(this IWindsorContainer container, IServiceCollection services)
         {
-            //Register base services
-            container.Register(
+            AddBaseServices(container);
+            AddSubResolvers(container);
+            AddServicesCollection(container, services);
+        }
 
-                Component.For<IWindsorContainer>()
-                    .Instance(container)
-                    .LifestyleSingleton(),
-
-                Component.For<GlobalMsLifetimeScopeProvider>()
-                    .LifestyleSingleton(),
-
-                Component.For<MsLifetimeScopeProvider>()
-                    .LifestyleTransient(),
-
-                Component.For<IServiceScopeFactory>()
-                    .ImplementedBy<WindsorServiceScopeFactory>()
-                    .LifestyleTransient(),
-
-                Component.For<IServiceProvider>()
-                    .ImplementedBy<ScopedWindsorServiceProvider>()
-                    .LifestyleTransient()
-
+        private static void AddBaseServices(IWindsorContainer container)
+        {
+            if (!container.Kernel.HasComponent(typeof(IWindsorContainer)))
+            {
+                container.Register(
+                    Component.For<IWindsorContainer>()
+                        .Instance(container)
+                        .LifestyleSingleton()
                 );
+            }
 
+            if (!container.Kernel.HasComponent(typeof(GlobalMsLifetimeScope)))
+            {
+                container.Register(
+                    Component.For<GlobalMsLifetimeScope>()
+                        .LifestyleSingleton()
+                );
+            }
+
+            if (!container.Kernel.HasComponent(typeof(MsLifetimeScopeProvider)))
+            {
+                container.Register(
+                    Component.For<MsLifetimeScopeProvider>()
+                        .LifestyleTransient()
+                );
+            }
+
+            if (!container.Kernel.HasComponent(typeof(IServiceScopeFactory)))
+            {
+                container.Register(
+                    Component.For<IServiceScopeFactory>()
+                        .ImplementedBy<WindsorServiceScopeFactory>()
+                        .LifestyleTransient()
+                );
+            }
+
+            if (!container.Kernel.HasComponent(typeof(IServiceProvider)))
+            {
+                container.Register(
+                    Component.For<IServiceProvider>()
+                        .ImplementedBy<ScopedWindsorServiceProvider>()
+                        .LifestyleTransient()
+                );
+            }
+        }
+
+        private static void AddSubResolvers(IWindsorContainer container)
+        {
             // ASP.NET Core uses IEnumerable<T> to resolve a list of types.
             // Since some of these types are optional, Windsor must also return empty collections.
             container.Kernel.Resolver.AddSubResolver(new MsCompatibleCollectionResolver(container.Kernel));
 
             //Workaround for Options resolve problem. See https://github.com/aspnetboilerplate/aspnetboilerplate/issues/1563#issuecomment-261654317
             container.Kernel.Resolver.AddSubResolver(new MsOptionsSubResolver(container.Kernel));
+        }
 
-            //Register existing services
+        private static void AddServicesCollection(IWindsorContainer container, IServiceCollection services)
+        {
             foreach (var serviceDescriptor in services)
             {
                 if (serviceDescriptor.ImplementationInstance == container)
@@ -112,13 +150,13 @@ namespace Castle.Windsor.MsDependencyInjection
             switch (serviceLifetime)
             {
                 case ServiceLifetime.Transient:
-                    registrationBuilder.LifestyleCustom<MsScopedTransientLifestyleManager>();
+                    registrationBuilder.LifestyleTransient();
                     break;
                 case ServiceLifetime.Scoped:
                     registrationBuilder.LifestyleCustom<MsScopedLifestyleManager>();
                     break;
                 case ServiceLifetime.Singleton:
-                    registrationBuilder.LifestyleCustom<MyScopedSingletonLifestyleManager>();
+                    registrationBuilder.LifestyleSingleton();
                     break;
                 default:
                     throw new NotImplementedException("Unknown ServiceLifetime: " + serviceLifetime);

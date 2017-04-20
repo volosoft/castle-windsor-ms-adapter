@@ -18,7 +18,7 @@ namespace Castle.Windsor.MsDependencyInjection
             var service = services.GetSingletonServiceOrNull<T>();
             if (service == null)
             {
-                throw new ApplicationException("Can not find service: " + typeof(T).AssemblyQualifiedName);
+                throw new Exception("Can not find service: " + typeof(T).AssemblyQualifiedName);
             }
 
             return service;

@@ -1,11 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using Castle.Core;
+using System.Threading;
+using System.Threading.Tasks;
 using Castle.MicroKernel.Registration;
 using Castle.Windsor.MsDependencyInjection.Tests.TestClasses;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.DependencyInjection.Specification;
+using Microsoft.Extensions.DependencyInjection.Specification.Fakes;
 using Shouldly;
 using Xunit;
 
@@ -152,11 +155,75 @@ namespace Castle.Windsor.MsDependencyInjection.Tests
         }
 
         [Fact]
+        public void ResolvingAndDisposingWithIInterceptorShouldWorkForTransient()
+        {
+            var collection = new ServiceCollection();
+
+            var serviceProvider = CreateServiceProvider(collection);
+            var windsorContainer = serviceProvider.GetService<IWindsorContainer>();
+
+            windsorContainer.Register(
+                Component.For<MyTestInterceptor>().LifestyleTransient(),
+                Component.For<MyTestClass2>().LifestyleTransient(),
+                Component.For<MyTestClass3>().Interceptors<MyTestInterceptor>().LifestyleTransient()
+            );
+
+            using (var scope = serviceProvider.CreateScope())
+            {
+                var test1 = scope.ServiceProvider.GetService<MyTestClass2>();
+
+                _disposeCounter.Get<MyTestClass2>().ShouldBe(0);
+                _disposeCounter.Get<MyTestClass3>().ShouldBe(0);
+            }
+
+            _disposeCounter.Get<MyTestClass2>().ShouldBe(1);
+            _disposeCounter.Get<MyTestClass3>().ShouldBe(1);
+        }
+
+        [Fact]
+        public void ResolvingAndDisposingWithIInterceptorShouldWorkForTransientDirectlyFromContainer()
+        {
+            var collection = new ServiceCollection();
+
+            var serviceProvider = CreateServiceProvider(collection);
+            var windsorContainer = serviceProvider.GetService<IWindsorContainer>();
+
+            windsorContainer.Register(
+                Component.For<MyTestInterceptor>().LifestyleTransient(),
+                Component.For<MyTestClass2>().LifestyleTransient(),
+                Component.For<MyTestClass3>().Interceptors<MyTestInterceptor>().LifestyleTransient()
+            );
+
+            var test1 = windsorContainer.Resolve<MyTestClass2>();
+            _disposeCounter.Get<MyTestClass2>().ShouldBe(0);
+            _disposeCounter.Get<MyTestClass3>().ShouldBe(0);
+
+            windsorContainer.Release(test1);
+            _disposeCounter.Get<MyTestClass2>().ShouldBe(1);
+            _disposeCounter.Get<MyTestClass3>().ShouldBe(1);
+        }
+
+        [Fact]
+        public void Windsor_Dispose_Test_With_Interceptor()
+        {
+            var windsorContainer = new WindsorContainer();
+            windsorContainer.Register(
+                Component.For<DisposeCounter>().LifestyleSingleton(),
+                Component.For<MyTestInterceptor>().LifestyleTransient(),
+                Component.For<MyTestClass2>().LifestyleTransient(),
+                Component.For<MyTestClass3>().Interceptors<MyTestInterceptor>().LifestyleTransient()
+            );
+
+            var obj = windsorContainer.Resolve<MyTestClass2>();
+            windsorContainer.Release(obj);
+        }
+
+        [Fact]
         public void Should_Resolve_Registered_Enumerable()
         {
             var collection = new ServiceCollection();
 
-            collection.AddSingleton((IEnumerable<MyTestClass3>) new List<MyTestClass3>
+            collection.AddSingleton((IEnumerable<MyTestClass3>)new List<MyTestClass3>
             {
                 new MyTestClass3(),
                 new MyTestClass3(),
@@ -177,6 +244,125 @@ namespace Castle.Windsor.MsDependencyInjection.Tests
                 injectedObj.Objects.Count.ShouldBe(3);
             }
         }
+
+        [Fact]
+        public void Resolving_Scoped_Test()
+        {
+            var collection = new ServiceCollection();
+
+            collection.AddScoped<MyTestClass3>();
+
+            var serviceProvider = CreateServiceProvider(collection);
+
+            using (var scope = serviceProvider.CreateScope())
+            {
+                var obj1 = scope.ServiceProvider.GetService<MyTestClass3>();
+                var obj2 = scope.ServiceProvider.GetService<MyTestClass3>();
+                obj1.ShouldBeSameAs(obj2);
+            }
+        }
+
+        [Fact]
+        public void Resolving_Scoped_From_Container_Test()
+        {
+            var collection = new ServiceCollection();
+
+            collection.AddScoped<MyTestClass3>();
+
+            var serviceProvider = CreateServiceProvider(collection);
+            var windsorContainer = serviceProvider.GetService<IWindsorContainer>();
+
+            var obj1 = windsorContainer.Resolve<MyTestClass3>();
+            var obj2 = windsorContainer.Resolve<MyTestClass3>();
+            obj1.ShouldNotBeSameAs(obj2);
+        }
+
+        [Fact]
+        public void FactoryServicesAreCreatedAsPartOfCreatingObjectGraph_2()
+        {
+            var services = new ServiceCollection();
+            services.AddTransient<IFakeService, FakeService>();
+            services.AddTransient<IFactoryService>((Func<IServiceProvider, IFactoryService>)(p =>
+            {
+                IFakeService service = p.GetService<IFakeService>();
+                return (IFactoryService)new TransientFactoryService()
+                {
+                    FakeService = service,
+                    Value = 42
+                };
+            }));
+            services.AddScoped<ScopedFactoryService>((Func<IServiceProvider, ScopedFactoryService>)(p =>
+            {
+                IFakeService service = p.GetService<IFakeService>();
+                return new ScopedFactoryService()
+                {
+                    FakeService = service
+                };
+            }));
+            services.AddTransient<ServiceAcceptingFactoryService>();
+            IServiceProvider serviceProvider = this.CreateServiceProvider((IServiceCollection)services);
+            using (var scope = serviceProvider.CreateScope())
+            {
+                serviceProvider = scope.ServiceProvider;
+
+                ServiceAcceptingFactoryService service1 = serviceProvider.GetService<ServiceAcceptingFactoryService>();
+                ServiceAcceptingFactoryService service2 = serviceProvider.GetService<ServiceAcceptingFactoryService>();
+                Assert.Equal<int>(42, service1.TransientService.Value);
+                Assert.NotNull((object)service1.TransientService.FakeService);
+                Assert.Equal<int>(42, service2.TransientService.Value);
+                Assert.NotNull((object)service2.TransientService.FakeService);
+                Assert.NotNull((object)service1.ScopedService.FakeService);
+                Assert.NotSame((object)service1.TransientService, (object)service2.TransientService);
+                Assert.Same((object)service1.ScopedService, (object)service2.ScopedService);
+            }
+        }
+
+        [Fact]
+        public void ShouldReleaseScopedOnScopeDisposeButNotBefore()
+        {
+            var collection = new ServiceCollection();
+
+            collection.AddScoped<MyTestClass3>();
+            var serviceProvider = CreateServiceProvider(collection);
+            var windsorContainer = serviceProvider.GetService<IWindsorContainer>();
+
+            MyTestClass3 obj;
+
+            using (var scope = serviceProvider.CreateScope())
+            {
+                obj = scope.ServiceProvider.GetService<MyTestClass3>();
+                obj.IsDisposed.ShouldBeFalse();
+
+                windsorContainer.Release(obj);
+                obj.IsDisposed.ShouldBeFalse();
+            }
+
+            obj.IsDisposed.ShouldBeTrue();
+        }
+
+        [Fact]
+        public void Resolving_On_Same_Scope_Should_Be_Thread_Safe()
+        {
+            var serviceCollection = new ServiceCollection();
+            serviceCollection.TryAddEnumerable(new ServiceCollection()
+                .AddScoped<IEntityStateListener, INavigationFixer>(p => p.GetService<INavigationFixer>())
+                .AddScoped<INavigationListener, INavigationFixer>(p => p.GetService<INavigationFixer>())
+            );
+
+            serviceCollection.TryAdd(new ServiceCollection()
+                .AddScoped<INavigationFixer, NavigationFixer>()
+            );
+
+            var serviceProvider = CreateServiceProvider(serviceCollection);
+
+            Parallel.For(1, 100, (i) =>
+            {
+                var listener = serviceProvider.GetRequiredService<INavigationListener>();
+                (listener is NavigationFixer).ShouldBeTrue();
+            });
+        }
+
+        //TODO: TEST - Globally resolved objects should be disposed when the container is disposed?
 
         public void Dispose()
         {

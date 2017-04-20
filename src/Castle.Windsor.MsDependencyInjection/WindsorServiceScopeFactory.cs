@@ -8,7 +8,7 @@ namespace Castle.Windsor.MsDependencyInjection
     public class WindsorServiceScopeFactory : IServiceScopeFactory
     {
         private readonly IWindsorContainer _container; 
-        private readonly MsLifetimeScope _msLifetimeScope;
+        private readonly IMsLifetimeScope _msLifetimeScope;
 
         public WindsorServiceScopeFactory(IWindsorContainer container, MsLifetimeScopeProvider msLifetimeScopeProvider)
         { 

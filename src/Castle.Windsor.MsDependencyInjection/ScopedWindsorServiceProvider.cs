@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Reflection;
+using System.Threading;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Castle.Windsor.MsDependencyInjection
@@ -10,7 +12,27 @@ namespace Castle.Windsor.MsDependencyInjection
     public class ScopedWindsorServiceProvider : IServiceProvider, ISupportRequiredService
     {
         private readonly IWindsorContainer _container;
-        private readonly MsLifetimeScope _ownMsLifetimeScope;
+        private readonly IMsLifetimeScope _ownMsLifetimeScope;
+
+
+#if NET452
+        public static bool IsInResolving
+        {
+            get { return _isInResolving; }
+            set { _isInResolving = value; }
+        }
+
+        [ThreadStatic]
+        private static bool _isInResolving;
+#else
+        public static bool IsInResolving
+        {
+            get { return _current.Value; }
+            set { _current.Value = value; }
+        }
+
+        private static readonly AsyncLocal<bool> _current = new AsyncLocal<bool>();
+#endif
 
         public ScopedWindsorServiceProvider(IWindsorContainer container, MsLifetimeScopeProvider msLifetimeScopeProvider)
         {
@@ -32,32 +54,60 @@ namespace Castle.Windsor.MsDependencyInjection
         {
             using (MsLifetimeScope.Using(_ownMsLifetimeScope))
             {
-                //Check if given service is directly registered
-                if (_container.Kernel.HasComponent(serviceType))
+                var isAlreadyInResolving = IsInResolving;
+
+                if (!isAlreadyInResolving)
                 {
-                    return _container.Resolve(serviceType);
+                    IsInResolving = true;
                 }
 
-                // Check if requested IEnumerable<TService>
-                // MS uses GetService<IEnumerable<TService>>() to get a collection.
-                // This must be resolved with IWindsorContainer.ResolveAll();
-
-                if (serviceType.IsGenericType && serviceType.GetGenericTypeDefinition() == typeof(IEnumerable<>))
+                object instance = null;
+                try
                 {
-                    var allObjects = _container.ResolveAll(serviceType.GenericTypeArguments[0]);
-                    Array.Reverse(allObjects);
-                    return allObjects;
+                    return instance = ResolveInstanceOrNull(serviceType, isOptional);
                 }
-
-                if (isOptional)
+                finally
                 {
-                    //Not found
-                    return null;
-                }
+                    if (!isAlreadyInResolving)
+                    {
+                        if (instance != null)
+                        {
+                            _ownMsLifetimeScope?.AddInstance(instance);
+                        }
 
-                //Let Castle Windsor throws exception since the service is not registered!
+                        IsInResolving = false;
+                    }
+                }
+            }
+        }
+
+        private object ResolveInstanceOrNull(Type serviceType, bool isOptional)
+        {
+            //Check if given service is directly registered
+            if (_container.Kernel.HasComponent(serviceType))
+            {
                 return _container.Resolve(serviceType);
             }
+
+            // Check if requested IEnumerable<TService>
+            // MS uses GetService<IEnumerable<TService>>() to get a collection.
+            // This must be resolved with IWindsorContainer.ResolveAll();
+
+            if (serviceType.GetTypeInfo().IsGenericType && serviceType.GetGenericTypeDefinition() == typeof(IEnumerable<>))
+            {
+                var allObjects = _container.ResolveAll(serviceType.GenericTypeArguments[0]);
+                Array.Reverse(allObjects);
+                return allObjects;
+            }
+
+            if (isOptional)
+            {
+                //Not found
+                return null;
+            }
+
+            //Let Castle Windsor throws exception since the service is not registered!
+            return _container.Resolve(serviceType);
         }
     }
 }
