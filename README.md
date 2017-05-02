@@ -31,7 +31,7 @@ public IServiceProvider ConfigureServices(IServiceCollection services)
 {
     ...
 
-    return WindsorRegistrationHelper.CreateServiceProvider(new MsCompatibleWindsorContainer(), services);
+    return WindsorRegistrationHelper.CreateServiceProvider(new WindsorContainer(), services);
 }
 ````
 
