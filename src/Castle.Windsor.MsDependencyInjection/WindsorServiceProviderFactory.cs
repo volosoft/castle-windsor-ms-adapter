@@ -15,7 +15,7 @@ namespace Castle.Windsor.MsDependencyInjection
                 services.AddSingleton(container);
             }
 
-            WindsorRegistrationHelper.AddServices(container, services);
+            container.AddServices(services);
 
             return container;
         }
