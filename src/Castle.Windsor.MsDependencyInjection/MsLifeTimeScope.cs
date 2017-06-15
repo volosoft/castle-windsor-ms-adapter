@@ -6,15 +6,6 @@ using Castle.MicroKernel.Lifestyle.Scoped;
 
 namespace Castle.Windsor.MsDependencyInjection
 {
-    public interface IMsLifetimeScope
-    {
-        ILifetimeScope WindsorLifeTimeScope { get; }
-        void AddInstance(object instance);
-        void AddChild(MsLifetimeScope lifetimeScope);
-        void RemoveChild(MsLifetimeScope lifetimeScope);
-        void Dispose();
-    }
-
     /// <summary>
     /// Wrapper for Windsor lifetime infrastructure.
     /// </summary>
@@ -62,7 +53,10 @@ namespace Castle.Windsor.MsDependencyInjection
 
         public void AddInstance(object instance)
         {
-            _resolvedInstances.Add(instance);
+            lock (_resolvedInstances)
+            {
+                _resolvedInstances.Add(instance);
+            }
         }
 
         public void AddChild(MsLifetimeScope lifetimeScope)
@@ -98,9 +92,12 @@ namespace Castle.Windsor.MsDependencyInjection
                 _children.Clear();
             }
 
-            foreach (var instance in _resolvedInstances)
+            lock (_resolvedInstances)
             {
-                _container.Release(instance);
+                foreach (var instance in _resolvedInstances)
+                {
+                    _container.Release(instance);
+                }
             }
 
             WindsorLifeTimeScope.Dispose();
