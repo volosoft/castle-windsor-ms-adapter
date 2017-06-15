@@ -27,11 +27,11 @@ namespace Castle.Windsor.MsDependencyInjection
 #else
         public static bool IsInResolving
         {
-            get { return _current.Value; }
-            set { _current.Value = value; }
+            get { return _isInResolving.Value; }
+            set { _isInResolving.Value = value; }
         }
 
-        private static readonly AsyncLocal<bool> _current = new AsyncLocal<bool>();
+        private static readonly AsyncLocal<bool> _isInResolving = new AsyncLocal<bool>();
 #endif
 
         public ScopedWindsorServiceProvider(IWindsorContainer container, MsLifetimeScopeProvider msLifetimeScopeProvider)
