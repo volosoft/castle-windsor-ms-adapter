@@ -1,8 +1,8 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <Version>2.0.1</Version>
-    <TargetFrameworks>net452;net46;netstandard1.5</TargetFrameworks>
+    <Version>2.1.0</Version>
+    <TargetFrameworks>net452;net46;netstandard1.6</TargetFrameworks>
     <AssemblyName>Castle.Windsor.MsDependencyInjection</AssemblyName>
     <PackageId>Castle.Windsor.MsDependencyInjection</PackageId>
     <PackageTags>Windsor;Castle;AspNetCore;DI;IoC;DNX;DependencyInjection;Extensions</PackageTags>
@@ -33,27 +33,19 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="1.1.0" />
     <PackageReference Include="Microsoft.Extensions.Options" Version="1.1.1" />
+    <PackageReference Include="Castle.Windsor" Version="4.0.0" />
   </ItemGroup>
 
   <ItemGroup Condition=" '$(TargetFramework)' == 'net452' ">
     <Reference Include="System.Runtime" />
     <Reference Include="System" />
     <Reference Include="Microsoft.CSharp" />
-    <PackageReference Include="Castle.Windsor" Version="3.4.0" />
   </ItemGroup>
 
   <ItemGroup Condition=" '$(TargetFramework)' == 'net46' ">
     <Reference Include="System.Runtime" />
     <Reference Include="System" />
     <Reference Include="Microsoft.CSharp" />
-    <PackageReference Include="Castle.Windsor" Version="3.4.0" />
-  </ItemGroup>
-
-  <ItemGroup Condition=" '$(TargetFramework)' == 'netstandard1.5' ">
-    <Reference Include="System.Runtime" />
-    <Reference Include="System" />
-    <Reference Include="Microsoft.CSharp" />
-    <PackageReference Include="Fortress.Windsor" Version="0.5.265" />
   </ItemGroup>
 
 </Project>
