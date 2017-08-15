@@ -9,30 +9,18 @@ namespace Castle.Windsor.MsDependencyInjection
     /// <summary>
     /// Implements <see cref="IServiceProvider"/>.
     /// </summary>
-    public class ScopedWindsorServiceProvider : IServiceProvider, ISupportRequiredService
+    public class ScopedWindsorServiceProvider : IServiceProvider, ISupportRequiredService, IDisposable
     {
         private readonly IWindsorContainer _container;
         private readonly IMsLifetimeScope _ownMsLifetimeScope;
 
-
-#if NET452
         public static bool IsInResolving
         {
-            get { return _isInResolving; }
-            set { _isInResolving = value; }
-        }
-
-        [ThreadStatic]
-        private static bool _isInResolving;
-#else
-        public static bool IsInResolving
-        {
-            get { return _isInResolving.Value; }
-            set { _isInResolving.Value = value; }
+            get => _isInResolving.Value;
+            set => _isInResolving.Value = value;
         }
 
         private static readonly AsyncLocal<bool> _isInResolving = new AsyncLocal<bool>();
-#endif
 
         public ScopedWindsorServiceProvider(IWindsorContainer container, MsLifetimeScopeProvider msLifetimeScopeProvider)
         {
@@ -108,6 +96,14 @@ namespace Castle.Windsor.MsDependencyInjection
 
             //Let Castle Windsor throws exception since the service is not registered!
             return _container.Resolve(serviceType);
+        }
+
+        public void Dispose()
+        {
+            if (_ownMsLifetimeScope is GlobalMsLifetimeScope)
+            {
+                _ownMsLifetimeScope.Dispose();
+            }
         }
     }
 }

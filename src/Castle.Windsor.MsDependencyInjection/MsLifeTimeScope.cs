@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using Castle.Core.Internal;
 using Castle.MicroKernel.Lifestyle.Scoped;
@@ -33,21 +34,22 @@ namespace Castle.Windsor.MsDependencyInjection
 
         public ILifetimeScope WindsorLifeTimeScope { get; }
 
+        protected IWindsorContainer Container { get; }
+
         private readonly List<MsLifetimeScope> _children;
 
-        private readonly HashSet<object> _resolvedInstances;
-        private readonly IWindsorContainer _container;
+        private readonly List<object> _resolvedInstances;
 
         private ThreadSafeFlag _disposed;
 
         public MsLifetimeScope(IWindsorContainer container)
         {
-            _container = container;
+            Container = container;
 
             WindsorLifeTimeScope = new DefaultLifetimeScope();
 
             _children = new List<MsLifetimeScope>();
-            _resolvedInstances = new HashSet<object>();
+            _resolvedInstances = new List<object>();
             _disposed = new ThreadSafeFlag();
         }
 
@@ -82,8 +84,15 @@ namespace Castle.Windsor.MsDependencyInjection
                 return;
             }
 
+            DisposeInternal();
+        }
+
+        protected virtual void DisposeInternal()
+        {
             lock (_children)
             {
+                _children.Reverse();
+
                 foreach (var child in _children)
                 {
                     child.Dispose();
@@ -94,10 +103,14 @@ namespace Castle.Windsor.MsDependencyInjection
 
             lock (_resolvedInstances)
             {
+                _resolvedInstances.Reverse();
+
                 foreach (var instance in _resolvedInstances)
                 {
-                    _container.Release(instance);
+                    Container.Release(instance);
                 }
+
+                _resolvedInstances.Clear();
             }
 
             WindsorLifeTimeScope.Dispose();

@@ -6,5 +6,11 @@
             : base(container)
         {
         }
+
+        protected override void DisposeInternal()
+        {
+            base.DisposeInternal();
+            Container.Dispose();
+        }
     }
 }

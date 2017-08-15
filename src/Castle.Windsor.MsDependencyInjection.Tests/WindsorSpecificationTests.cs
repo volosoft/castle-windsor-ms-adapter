@@ -362,8 +362,6 @@ namespace Castle.Windsor.MsDependencyInjection.Tests
             });
         }
 
-        //TODO: TEST - Globally resolved objects should be disposed when the container is disposed?
-
         public void Dispose()
         {
             Assert.Null(MsLifetimeScope.Current);
