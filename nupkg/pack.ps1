@@ -19,7 +19,7 @@ foreach($project in $projects) {
 
     # Create nuget pack
     Set-Location $projectFolder
-    & dotnet msbuild /t:pack /p:Configuration=Release /p:IncludeSymbols=true /p:SourceLinkCreate=true
+    & dotnet msbuild /t:pack /p:Configuration=Release /p:SourceLinkCreate=true
 
     # Copy nuget package
     $projectPackPath = Join-Path $projectFolder ("/bin/Release/" + $project + ".*.nupkg")
