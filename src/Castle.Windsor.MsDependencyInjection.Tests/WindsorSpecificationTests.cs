@@ -362,6 +362,23 @@ namespace Castle.Windsor.MsDependencyInjection.Tests
             });
         }
 
+        [Fact]
+        public void Resolving_Named_Component_With_ServiceOverride()
+        {
+            var collection = new ServiceCollection();
+
+            var serviceProvider = CreateServiceProvider(collection);
+            var windsorContainer = serviceProvider.GetService<IWindsorContainer>();
+
+            windsorContainer.Register(
+                Component.For<MyTestClass3>().Named("CustomTestClass"),
+                Component.For<MyTestClass2>().ImplementedBy<MyTestClass2>().DependsOn(ServiceOverride.ForKey("myTestClass3").Eq("CustomTestClass"))
+            );
+
+            var test1 = serviceProvider.GetService<MyTestClass2>();
+            Assert.NotNull(test1);
+        }
+
         public void Dispose()
         {
             Assert.Null(MsLifetimeScope.Current);
