@@ -17,17 +17,16 @@ namespace Castle.Windsor.MsDependencyInjection.Tests
     public class WindsorSpecificationTests : DependencyInjectionSpecificationTests, IDisposable
     {
         private DisposeCounter _disposeCounter;
+        private WindsorContainer _windsorContainer;
 
         protected override IServiceProvider CreateServiceProvider(IServiceCollection serviceCollection)
         {
-            var windsorContainer = new WindsorContainer();
-
-            windsorContainer.Register(Component.For<DisposeCounter>().LifestyleSingleton());
-
-            _disposeCounter = windsorContainer.Resolve<DisposeCounter>();
+            _windsorContainer = new WindsorContainer();
+            _windsorContainer.Register(Component.For<DisposeCounter>().LifestyleSingleton());
+            _disposeCounter = _windsorContainer.Resolve<DisposeCounter>();
 
             return WindsorRegistrationHelper.CreateServiceProvider(
-                windsorContainer,
+                _windsorContainer,
                 serviceCollection
                 );
         }
@@ -44,8 +43,10 @@ namespace Castle.Windsor.MsDependencyInjection.Tests
             serviceProvider.GetService<IWindsorContainer>().Register(Component.For<MyTestClass1>().LifestyleTransient());
 
             var scopeFactory = serviceProvider.GetService<IServiceScopeFactory>();
+            IServiceProvider scopeServiceProvider;
             using (var scope = scopeFactory.CreateScope())
             {
+                scopeServiceProvider = scope.ServiceProvider;
                 var testObj1 = scope.ServiceProvider.GetService<MyTestClass1>();
                 testObj1.IsDisposed.ShouldBeFalse();
                 serviceProvider.GetService<IWindsorContainer>().Release(testObj1);
@@ -56,6 +57,7 @@ namespace Castle.Windsor.MsDependencyInjection.Tests
                 _disposeCounter.Get<MyTestClass3>().ShouldBe(0);
             }
 
+            Assert.False(_windsorContainer.Kernel.ReleasePolicy.HasTrack(scopeServiceProvider));
             _disposeCounter.Get<MyTestClass2>().ShouldBe(1);
             _disposeCounter.Get<MyTestClass3>().ShouldBe(1);
         }

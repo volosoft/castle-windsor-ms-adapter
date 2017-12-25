@@ -9,10 +9,10 @@ namespace Castle.Windsor.MsDependencyInjection
     /// <summary>
     /// Implements <see cref="IServiceProvider"/>.
     /// </summary>
-    public class ScopedWindsorServiceProvider : IServiceProvider, ISupportRequiredService, IDisposable
+    public class ScopedWindsorServiceProvider : IServiceProvider, ISupportRequiredService
     {
         private readonly IWindsorContainer _container;
-        private readonly IMsLifetimeScope _ownMsLifetimeScope;
+        protected IMsLifetimeScope OwnMsLifetimeScope { get; }
 
         public static bool IsInResolving
         {
@@ -25,7 +25,7 @@ namespace Castle.Windsor.MsDependencyInjection
         public ScopedWindsorServiceProvider(IWindsorContainer container, MsLifetimeScopeProvider msLifetimeScopeProvider)
         {
             _container = container;
-            _ownMsLifetimeScope = msLifetimeScopeProvider.LifetimeScope;
+            OwnMsLifetimeScope = msLifetimeScopeProvider.LifetimeScope;
         }
 
         public object GetService(Type serviceType)
@@ -40,7 +40,7 @@ namespace Castle.Windsor.MsDependencyInjection
 
         private object GetServiceInternal(Type serviceType, bool isOptional)
         {
-            using (MsLifetimeScope.Using(_ownMsLifetimeScope))
+            using (MsLifetimeScope.Using(OwnMsLifetimeScope))
             {
                 var isAlreadyInResolving = IsInResolving;
 
@@ -60,7 +60,7 @@ namespace Castle.Windsor.MsDependencyInjection
                     {
                         if (instance != null)
                         {
-                            _ownMsLifetimeScope?.AddInstance(instance);
+                            OwnMsLifetimeScope?.AddInstance(instance);
                         }
 
                         IsInResolving = false;
@@ -96,14 +96,6 @@ namespace Castle.Windsor.MsDependencyInjection
 
             //Let Castle Windsor throws exception since the service is not registered!
             return _container.Resolve(serviceType);
-        }
-
-        public void Dispose()
-        {
-            if (_ownMsLifetimeScope is GlobalMsLifetimeScope)
-            {
-                _ownMsLifetimeScope.Dispose();
-            }
         }
     }
 }

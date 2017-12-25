@@ -18,7 +18,7 @@ namespace Castle.Windsor.MsDependencyInjection
 
             using (MsLifetimeScope.Using(container.Resolve<GlobalMsLifetimeScope>()))
             {
-                return container.Resolve<IServiceProvider>();
+                return container.Resolve<GlobalScopedWindsorServiceProvider>();
             }
         }
 
@@ -73,6 +73,14 @@ namespace Castle.Windsor.MsDependencyInjection
                 container.Register(
                     Component.For<IServiceProvider>()
                         .ImplementedBy<ScopedWindsorServiceProvider>()
+                        .LifestyleTransient()
+                );
+            }
+
+            if (!container.Kernel.HasComponent(typeof(GlobalScopedWindsorServiceProvider)))
+            {
+                container.Register(
+                    Component.For<GlobalScopedWindsorServiceProvider>()
                         .LifestyleTransient()
                 );
             }
