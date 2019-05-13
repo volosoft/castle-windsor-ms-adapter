@@ -9,7 +9,7 @@ namespace Castle.Windsor.MsDependencyInjection
     /// <summary>
     /// Implements <see cref="IServiceProvider"/>.
     /// </summary>
-    public class ScopedWindsorServiceProvider : IServiceProvider, ISupportRequiredService
+    public class ScopedWindsorServiceProvider : IServiceProvider, ISupportRequiredService, IDisposable
     {
         private readonly IWindsorContainer _container;
         protected IMsLifetimeScope OwnMsLifetimeScope { get; }
@@ -96,6 +96,11 @@ namespace Castle.Windsor.MsDependencyInjection
 
             //Let Castle Windsor throws exception since the service is not registered!
             return _container.Resolve(serviceType);
+        }
+
+        public void Dispose()
+        {
+            _container.Dispose();
         }
     }
 }
