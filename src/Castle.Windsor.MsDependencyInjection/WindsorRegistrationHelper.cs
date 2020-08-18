@@ -8,7 +8,7 @@ namespace Castle.Windsor.MsDependencyInjection
     public static class WindsorRegistrationHelper
     {
         /// <summary>
-        /// Adds all given services from <see cref="Microsoft.Extensions.DependencyInjection"/> 
+        /// Adds all given services from <see cref="Microsoft.Extensions.DependencyInjection"/>
         /// to the Castle Windsor container.
         /// </summary>
         /// <returns>A Castle Windsor service provider.</returns>
@@ -64,7 +64,7 @@ namespace Castle.Windsor.MsDependencyInjection
                 container.Register(
                     Component.For<IServiceScopeFactory>()
                         .ImplementedBy<WindsorServiceScopeFactory>()
-                        .LifestyleTransient()
+                        .LifestyleSingleton()
                 );
             }
 

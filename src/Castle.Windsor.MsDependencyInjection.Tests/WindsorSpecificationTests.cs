@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 using Castle.MicroKernel.Registration;
 using Castle.Windsor.MsDependencyInjection.Tests.TestClasses;
@@ -28,7 +27,41 @@ namespace Castle.Windsor.MsDependencyInjection.Tests
             return WindsorRegistrationHelper.CreateServiceProvider(
                 _windsorContainer,
                 serviceCollection
-                );
+            );
+        }
+
+        [Fact]
+        public void SingletonServiceShouldResolveServicesFromTheRootServiceScopeFactory()
+        {
+            var collection = new ServiceCollection();
+            collection.AddTransient<MyTestClass3>();
+            collection.AddSingleton<MyTestClass3Factory>();
+
+            var serviceProvider = CreateServiceProvider(collection);
+
+            MyTestClass3 instanceA1;
+
+            using (var scope1 = serviceProvider.CreateScope())
+            {
+                var factory = scope1.ServiceProvider.GetRequiredService<MyTestClass3Factory>();
+                instanceA1 = factory.Create("A");
+                instanceA1.IsDisposed.ShouldBeFalse();
+            }
+
+            instanceA1.IsDisposed.ShouldBeFalse();
+
+            MyTestClass3 instanceA2;
+
+            using (var scope2 = serviceProvider.CreateScope())
+            {
+                var factory = scope2.ServiceProvider.GetRequiredService<MyTestClass3Factory>();
+                instanceA2 = factory.Create("A");
+                instanceA2.IsDisposed.ShouldBeFalse();
+            }
+
+            instanceA2.IsDisposed.ShouldBeFalse();
+
+            Assert.Equal(instanceA1, instanceA2);
         }
 
         [Fact]
@@ -40,7 +73,8 @@ namespace Castle.Windsor.MsDependencyInjection.Tests
 
             var serviceProvider = CreateServiceProvider(collection);
 
-            serviceProvider.GetService<IWindsorContainer>().Register(Component.For<MyTestClass1>().LifestyleTransient());
+            serviceProvider.GetService<IWindsorContainer>()
+                .Register(Component.For<MyTestClass1>().LifestyleTransient());
 
             var scopeFactory = serviceProvider.GetService<IServiceScopeFactory>();
             IServiceProvider scopeServiceProvider;
@@ -71,7 +105,8 @@ namespace Castle.Windsor.MsDependencyInjection.Tests
 
             var serviceProvider = CreateServiceProvider(collection);
 
-            serviceProvider.GetService<IWindsorContainer>().Register(Component.For<MyTestClass1>().LifestyleTransient());
+            serviceProvider.GetService<IWindsorContainer>()
+                .Register(Component.For<MyTestClass1>().LifestyleTransient());
 
             var testObj1 = serviceProvider.GetService<IWindsorContainer>().Resolve<MyTestClass1>();
             testObj1.IsDisposed.ShouldBeFalse();
@@ -86,14 +121,14 @@ namespace Castle.Windsor.MsDependencyInjection.Tests
         [Fact]
         public void ResolvingFromScopeShouldWorkForWindsorTransients()
         {
-
             var collection = new ServiceCollection();
             collection.AddTransient<MyTestClass1>();
             collection.AddScoped<MyTestClass2>();
 
             var serviceProvider = CreateServiceProvider(collection);
 
-            serviceProvider.GetService<IWindsorContainer>().Register(Component.For<MyTestClass3>().LifestyleTransient());
+            serviceProvider.GetService<IWindsorContainer>()
+                .Register(Component.For<MyTestClass3>().LifestyleTransient());
 
             var scopeFactory = serviceProvider.GetService<IServiceScopeFactory>();
             using (var scope = scopeFactory.CreateScope())
@@ -225,7 +260,7 @@ namespace Castle.Windsor.MsDependencyInjection.Tests
         {
             var collection = new ServiceCollection();
 
-            collection.AddSingleton((IEnumerable<MyTestClass3>)new List<MyTestClass3>
+            collection.AddSingleton((IEnumerable<MyTestClass3>) new List<MyTestClass3>
             {
                 new MyTestClass3(),
                 new MyTestClass3(),
@@ -284,16 +319,16 @@ namespace Castle.Windsor.MsDependencyInjection.Tests
         {
             var services = new ServiceCollection();
             services.AddTransient<IFakeService, FakeService>();
-            services.AddTransient<IFactoryService>((Func<IServiceProvider, IFactoryService>)(p =>
+            services.AddTransient<IFactoryService>((Func<IServiceProvider, IFactoryService>) (p =>
             {
                 IFakeService service = p.GetService<IFakeService>();
-                return (IFactoryService)new TransientFactoryService()
+                return (IFactoryService) new TransientFactoryService()
                 {
                     FakeService = service,
                     Value = 42
                 };
             }));
-            services.AddScoped<ScopedFactoryService>((Func<IServiceProvider, ScopedFactoryService>)(p =>
+            services.AddScoped<ScopedFactoryService>((Func<IServiceProvider, ScopedFactoryService>) (p =>
             {
                 IFakeService service = p.GetService<IFakeService>();
                 return new ScopedFactoryService()
@@ -302,7 +337,7 @@ namespace Castle.Windsor.MsDependencyInjection.Tests
                 };
             }));
             services.AddTransient<ServiceAcceptingFactoryService>();
-            IServiceProvider serviceProvider = this.CreateServiceProvider((IServiceCollection)services);
+            IServiceProvider serviceProvider = this.CreateServiceProvider((IServiceCollection) services);
             using (var scope = serviceProvider.CreateScope())
             {
                 serviceProvider = scope.ServiceProvider;
@@ -310,12 +345,12 @@ namespace Castle.Windsor.MsDependencyInjection.Tests
                 ServiceAcceptingFactoryService service1 = serviceProvider.GetService<ServiceAcceptingFactoryService>();
                 ServiceAcceptingFactoryService service2 = serviceProvider.GetService<ServiceAcceptingFactoryService>();
                 Assert.Equal<int>(42, service1.TransientService.Value);
-                Assert.NotNull((object)service1.TransientService.FakeService);
+                Assert.NotNull((object) service1.TransientService.FakeService);
                 Assert.Equal<int>(42, service2.TransientService.Value);
-                Assert.NotNull((object)service2.TransientService.FakeService);
-                Assert.NotNull((object)service1.ScopedService.FakeService);
-                Assert.NotSame((object)service1.TransientService, (object)service2.TransientService);
-                Assert.Same((object)service1.ScopedService, (object)service2.ScopedService);
+                Assert.NotNull((object) service2.TransientService.FakeService);
+                Assert.NotNull((object) service1.ScopedService.FakeService);
+                Assert.NotSame((object) service1.TransientService, (object) service2.TransientService);
+                Assert.Same((object) service1.ScopedService, (object) service2.ScopedService);
             }
         }
 
@@ -374,7 +409,8 @@ namespace Castle.Windsor.MsDependencyInjection.Tests
 
             windsorContainer.Register(
                 Component.For<MyTestClass3>().Named("CustomTestClass"),
-                Component.For<MyTestClass2>().ImplementedBy<MyTestClass2>().DependsOn(ServiceOverride.ForKey("myTestClass3").Eq("CustomTestClass"))
+                Component.For<MyTestClass2>().ImplementedBy<MyTestClass2>()
+                    .DependsOn(ServiceOverride.ForKey("myTestClass3").Eq("CustomTestClass"))
             );
 
             var test1 = serviceProvider.GetService<MyTestClass2>();
