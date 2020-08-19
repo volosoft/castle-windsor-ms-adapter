@@ -1,8 +1,8 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <Version>3.3.1</Version>
-    <TargetFrameworks>netstandard2.0</TargetFrameworks>
+    <Version>3.4.0</Version>
+    <TargetFramework>netstandard2.0</TargetFramework>
     <AssemblyName>Castle.Windsor.MsDependencyInjection</AssemblyName>
     <PackageId>Castle.Windsor.MsDependencyInjection</PackageId>
     <PackageTags>Windsor;Castle;AspNetCore;DI;IoC;DNX;DependencyInjection;Extensions</PackageTags>
