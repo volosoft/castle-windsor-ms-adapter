@@ -15,6 +15,8 @@ namespace Castle.Windsor.MsDependencyInjection
         private readonly IWindsorContainer _container;
         private readonly IMsLifetimeScope _parentLifetimeScope;
 
+        private readonly IDisposable _msLifetimeScopeDisposable;
+
         public WindsorServiceScope(IWindsorContainer container, IMsLifetimeScope currentMsLifetimeScope)
         {
             _container = container;
@@ -24,15 +26,14 @@ namespace Castle.Windsor.MsDependencyInjection
 
             _parentLifetimeScope?.AddChild(LifetimeScope);
 
-            using (MsLifetimeScope.Using(LifetimeScope))
-            {
-                ServiceProvider = container.Resolve<IServiceProvider>();
-            }
+            _msLifetimeScopeDisposable = MsLifetimeScope.Using(LifetimeScope);
+            ServiceProvider = container.Resolve<IServiceProvider>();
         }
          
         public void Dispose()
         {
             _parentLifetimeScope?.RemoveChild(LifetimeScope);
+            _msLifetimeScopeDisposable?.Dispose();
             LifetimeScope.Dispose();
             _container.Release(ServiceProvider);
         }
