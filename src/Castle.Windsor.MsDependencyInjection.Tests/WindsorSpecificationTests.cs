@@ -18,6 +18,8 @@ namespace Castle.Windsor.MsDependencyInjection.Tests
         private DisposeCounter _disposeCounter;
         private WindsorContainer _windsorContainer;
 
+        public override bool SupportsIServiceProviderIsService => false;
+
         protected override IServiceProvider CreateServiceProvider(IServiceCollection serviceCollection)
         {
             _windsorContainer = new WindsorContainer();
