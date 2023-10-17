@@ -9,7 +9,7 @@ namespace Castle.Windsor.MsDependencyInjection
     /// <summary>
     /// Implements <see cref="IServiceProvider"/>.
     /// </summary>
-    public class ScopedWindsorServiceProvider : IServiceProvider, ISupportRequiredService
+    public class ScopedWindsorServiceProvider : IServiceProvider, ISupportRequiredService, IServiceProviderIsService
     {
         private readonly IWindsorContainer _container;
         protected IMsLifetimeScope OwnMsLifetimeScope { get; }
@@ -96,6 +96,36 @@ namespace Castle.Windsor.MsDependencyInjection
 
             //Let Castle Windsor throws exception since the service is not registered!
             return _container.Resolve(serviceType);
+        }
+
+        public bool IsService(Type serviceType)
+        {
+            if (serviceType is null)
+            {
+                throw new ArgumentNullException(nameof(serviceType));
+            }
+            
+            if (serviceType.IsGenericTypeDefinition)
+            {
+                return false;
+            }
+
+            if (_container.Kernel.HasComponent(serviceType))
+            {
+                return true;
+            }
+
+            if (serviceType.IsConstructedGenericType &&
+                serviceType.GetGenericTypeDefinition() is Type genericDefinition)
+            {
+                // We special case IEnumerable since it isn't explicitly registered in the container
+                // yet we can manifest instances of it when requested.
+                return genericDefinition == typeof(IEnumerable<>) || _container.Kernel.HasComponent(genericDefinition);
+            }
+
+            return serviceType == typeof(IServiceProvider) ||
+                   serviceType == typeof(IServiceScopeFactory) ||
+                   serviceType == typeof(IServiceProviderIsService);
         }
     }
 }

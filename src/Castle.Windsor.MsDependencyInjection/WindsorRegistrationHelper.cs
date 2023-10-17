@@ -71,12 +71,12 @@ namespace Castle.Windsor.MsDependencyInjection
             if (!container.Kernel.HasComponent(typeof(IServiceProvider)))
             {
                 container.Register(
-                    Component.For<IServiceProvider>()
+                    Component.For<IServiceProvider, IServiceProviderIsService>()
                         .ImplementedBy<ScopedWindsorServiceProvider>()
                         .LifestyleTransient()
                 );
             }
-
+            
             if (!container.Kernel.HasComponent(typeof(GlobalScopedWindsorServiceProvider)))
             {
                 container.Register(
