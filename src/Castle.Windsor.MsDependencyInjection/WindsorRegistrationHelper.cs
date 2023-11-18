@@ -1,5 +1,6 @@
 ﻿using System;
 using Castle.MicroKernel.Registration;
+using Castle.MicroKernel.SubSystems.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using ServiceDescriptor = Microsoft.Extensions.DependencyInjection.ServiceDescriptor;
 
@@ -26,6 +27,11 @@ namespace Castle.Windsor.MsDependencyInjection
         /// Used to add services to an existing container, without creating a <see cref="IServiceProvider"/>.
         /// </summary>
         public static void AddServices(this IWindsorContainer container, IServiceCollection services)
+        {
+            container.Install(new ServiceCollectionInstaller(services));
+        }
+
+        internal static void AddServicesInternal(this IWindsorContainer container, IServiceCollection services)
         {
             AddBaseServices(container);
             AddSubResolvers(container);
@@ -171,6 +177,21 @@ namespace Castle.Windsor.MsDependencyInjection
             }
 
             return registrationBuilder;
+        }
+    }
+
+    internal sealed class ServiceCollectionInstaller : IWindsorInstaller
+    {
+        private readonly IServiceCollection _services;
+
+        public ServiceCollectionInstaller(IServiceCollection services)
+        {
+            _services = services;
+        }
+
+        public void Install(IWindsorContainer container, IConfigurationStore store)
+        {
+            container.AddServicesInternal(_services);
         }
     }
 }
