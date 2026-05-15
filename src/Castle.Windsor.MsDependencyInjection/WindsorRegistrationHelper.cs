@@ -1,6 +1,7 @@
-﻿using System;
+using System;
 using Castle.MicroKernel.Registration;
 using Castle.MicroKernel.SubSystems.Configuration;
+using Castle.Windsor.MsDependencyInjection.Keyed;
 using Microsoft.Extensions.DependencyInjection;
 using ServiceDescriptor = Microsoft.Extensions.DependencyInjection.ServiceDescriptor;
 
@@ -49,6 +50,22 @@ namespace Castle.Windsor.MsDependencyInjection
                 );
             }
 
+            if (!container.Kernel.HasComponent(typeof(KeyedServiceRegistry)))
+            {
+                container.Register(
+                    Component.For<KeyedServiceRegistry>()
+                        .LifestyleSingleton()
+                );
+            }
+
+            if (!container.Kernel.HasComponent(typeof(TypeKeyedMetadataRegistry)))
+            {
+                container.Register(
+                    Component.For<TypeKeyedMetadataRegistry>()
+                        .LifestyleSingleton()
+                );
+            }
+
             if (!container.Kernel.HasComponent(typeof(GlobalMsLifetimeScope)))
             {
                 container.Register(
@@ -77,12 +94,13 @@ namespace Castle.Windsor.MsDependencyInjection
             if (!container.Kernel.HasComponent(typeof(IServiceProvider)))
             {
                 container.Register(
-                    Component.For<IServiceProvider, IServiceProviderIsService>()
+                    Component.For<IServiceProvider, IServiceProviderIsService, IKeyedServiceProvider, IServiceProviderIsKeyedService>()
+                        .Forward<ScopedWindsorServiceProvider>()
                         .ImplementedBy<ScopedWindsorServiceProvider>()
                         .LifestyleTransient()
                 );
             }
-            
+
             if (!container.Kernel.HasComponent(typeof(GlobalScopedWindsorServiceProvider)))
             {
                 container.Register(
@@ -94,29 +112,58 @@ namespace Castle.Windsor.MsDependencyInjection
 
         private static void AddSubResolvers(IWindsorContainer container)
         {
+            // [FromKeyedServices] / [ServiceKey] constructor parameter injection.
+            // Has to be the first one, so it handles keyed collections
+            container.Kernel.Resolver.AddSubResolver(
+                new KeyedServicesSubResolver(
+                    container.Resolve<TypeKeyedMetadataRegistry>(),
+                    container.Resolve<KeyedServiceRegistry>(),
+                    container.Resolve<ScopedWindsorServiceProvider>()));
+
             // ASP.NET Core uses IEnumerable<T> to resolve a list of types.
             // Since some of these types are optional, Windsor must also return empty collections.
             container.Kernel.Resolver.AddSubResolver(new MsCompatibleCollectionResolver(container.Kernel));
 
-            //Workaround for Options resolve problem. See https://github.com/aspnetboilerplate/aspnetboilerplate/issues/1563#issuecomment-261654317
+            // Workaround for Options resolve problem. See https://github.com/aspnetboilerplate/aspnetboilerplate/issues/1563#issuecomment-261654317
             container.Kernel.Resolver.AddSubResolver(new MsOptionsSubResolver(container.Kernel));
         }
 
         private static void AddServicesCollection(IWindsorContainer container, IServiceCollection services)
         {
+            var keyedServiceRegistry = container.Resolve<KeyedServiceRegistry>();
+
             foreach (var serviceDescriptor in services)
             {
-                if (serviceDescriptor.ImplementationInstance == container)
+                if (!serviceDescriptor.IsKeyedService)
                 {
-                    //Already registered before
-                    continue;
-                }
+                    if (serviceDescriptor.ImplementationInstance == container)
+                    {
+                        // Already registered before
+                        continue;
+                    }
 
-                RegisterServiceDescriptor(container, serviceDescriptor);
+                    RegisterNonKeyedServiceDescriptor(container, serviceDescriptor);
+                }
+                else
+                {
+                    var keyedServiceId = new KeyedServiceId(serviceDescriptor.ServiceType, serviceDescriptor.ServiceKey);
+
+                    if (serviceDescriptor.ServiceKey != KeyedService.AnyKey)
+                    {
+                        var windsorKey = keyedServiceRegistry.RegisterExplicitKeyService(keyedServiceId);
+                        RegisterKeyedServiceDescriptor(container, serviceDescriptor, windsorKey, serviceDescriptor.ServiceKey);
+                    }
+                    else
+                    {
+                        keyedServiceRegistry.RegisterAnyKeyService(
+                            keyedServiceId,
+                            doRegisterExpansion: (windsorKey, serviceKey) => RegisterKeyedServiceDescriptor(container, serviceDescriptor, windsorKey, serviceKey));
+                    }
+                }
             }
         }
 
-        private static void RegisterServiceDescriptor(IWindsorContainer container, ServiceDescriptor serviceDescriptor)
+        private static void RegisterNonKeyedServiceDescriptor(IWindsorContainer container, ServiceDescriptor serviceDescriptor)
         {
             // MS allows the same type to be registered multiple times.
             // Castle Windsor throws an exception in that case - it requires an unique name.
@@ -154,6 +201,36 @@ namespace Castle.Windsor.MsDependencyInjection
                         .Named(uniqueName)
                         .IsDefault()
                         .Instance(serviceDescriptor.ImplementationInstance)
+                        .ConfigureLifecycle(serviceDescriptor.Lifetime)
+                    );
+            }
+        }
+
+        private static void RegisterKeyedServiceDescriptor(IWindsorContainer container, ServiceDescriptor serviceDescriptor, string windsorKey, object serviceKey)
+        {
+            if (serviceDescriptor.KeyedImplementationType != null)
+            {
+                container.Register(
+                    Component.For(serviceDescriptor.ServiceType)
+                        .Named(windsorKey)
+                        .ImplementedBy(serviceDescriptor.KeyedImplementationType)
+                        .ConfigureLifecycle(serviceDescriptor.Lifetime));
+            }
+            else if (serviceDescriptor.KeyedImplementationFactory != null)
+            {
+                container.Register(
+                    Component.For(serviceDescriptor.ServiceType)
+                        .Named(windsorKey)
+                        .UsingFactoryMethod(c => serviceDescriptor.KeyedImplementationFactory!(c.Resolve<IServiceProvider>(), serviceKey))
+                        .ConfigureLifecycle(serviceDescriptor.Lifetime)
+                    );
+            }
+            else
+            {
+                container.Register(
+                    Component.For(serviceDescriptor.ServiceType)
+                        .Named(windsorKey)
+                        .Instance(serviceDescriptor.KeyedImplementationInstance)
                         .ConfigureLifecycle(serviceDescriptor.Lifetime)
                     );
             }
