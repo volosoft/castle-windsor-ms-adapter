@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Threading;
 using System.Threading.Tasks;
 using Castle.MicroKernel.Registration;
 using Castle.Windsor.MsDependencyInjection.Tests.Parity.Fakes;
@@ -153,6 +154,57 @@ namespace Castle.Windsor.MsDependencyInjection.Tests.Parity.Keyed
 
             (sp as IDisposable)?.Dispose();
             MsLifetimeScope.Current.ShouldBeNull();
+        }
+
+        // Lock-order regression: ExpandTemplateOrGetExistingExpansion used to call
+        // container.Register while still holding KeyedServiceRegistry._sync. That ordering
+        // (registry _sync -> Windsor internal lock) combined with the inverse path on another
+        // thread (Windsor internal lock -> registry _sync, via the sub-resolver) made a
+        // cross-lock deadlock possible. We probe it by spinning many parallel expansions while
+        // a separate thread hammers IsKeyedService / GetHandlers on the kernel, and requiring
+        // the workload to finish within a generous timeout.
+        [Fact]
+        public async Task Concurrent_AnyKey_Expansion_With_Kernel_Queries_DoesNotDeadlock()
+        {
+            var (sp, _) = BuildWindsor(s => s.AddKeyedTransient<IKeyedFake, KeyedFakeA>(KeyedService.AnyKey));
+            var windsorContainer = sp.GetService<IWindsorContainer>();
+
+            using var stop = new CancellationTokenSource();
+            var workloadErrors = new ConcurrentBag<Exception>();
+
+            // The hammer just keeps the kernel busy on another thread while the workload
+            // triggers many concurrent expansions. We deliberately ignore exceptions inside
+            // it: in flight, the container can transiently report not-yet-published names.
+            // Only the workload's deadlock-or-not signal matters.
+            var hammer = Task.Run(() =>
+            {
+                while (!stop.IsCancellationRequested)
+                {
+                    try
+                    {
+                        _ = windsorContainer.Kernel.GetHandlers(typeof(IKeyedFake));
+                        _ = sp.GetService<IServiceProviderIsKeyedService>().IsKeyedService(typeof(IKeyedFake), "probe");
+                    }
+                    catch
+                    {
+                    }
+                }
+            });
+
+            var workload = Task.Run(() => Parallel.For(0, 200, i =>
+            {
+                try { sp.GetKeyedService<IKeyedFake>("k" + i).ShouldNotBeNull(); }
+                catch (Exception ex) { workloadErrors.Add(ex); }
+            }));
+
+            // 30s is well beyond the work; if we hit it we're deadlocked.
+            var completed = await Task.WhenAny(workload, Task.Delay(TimeSpan.FromSeconds(30)));
+            completed.ShouldBe(workload, "expansion workload deadlocked or timed out");
+            stop.Cancel();
+            await hammer;
+
+            workloadErrors.ShouldBeEmpty();
+            (sp as IDisposable)?.Dispose();
         }
     }
 }
