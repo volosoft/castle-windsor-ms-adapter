@@ -14,7 +14,7 @@ namespace Castle.Windsor.MsDependencyInjection
         private readonly KeyedServiceRegistry _keyedServicesRegistry;
 
         public MsCompatibleCollectionResolver(IKernel kernel)
-            : base(kernel)
+            : base(kernel, allowEmptyCollections: true)
         {
             if (!kernel.HasComponent(typeof(KeyedServiceRegistry)))
             {
