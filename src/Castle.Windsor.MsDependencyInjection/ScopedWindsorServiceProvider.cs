@@ -91,8 +91,10 @@ namespace Castle.Windsor.MsDependencyInjection
                 return null;
             }
 
-            // Let Castle Windsor throws exception since the service is not registered!
-            return ContainerResolve(serviceType, track);
+            // Match MS DI contract: GetRequiredService / ISupportRequiredService must throw
+            // InvalidOperationException (not Castle's ComponentNotFoundException) when the
+            // service is not registered.
+            throw new InvalidOperationException($"No service for type '{serviceType}' has been registered.");
         }
 
         public object GetKeyedService(Type serviceType, object serviceKey)
@@ -273,11 +275,11 @@ namespace Castle.Windsor.MsDependencyInjection
 
         private object ContainerResolve(Type serviceType, bool track)
         {
-            if (!_container.Kernel.HasComponent(serviceType))
-            {
-                return null;
-            }
-
+            // Let Castle Windsor throw ComponentNotFoundException when the service is not
+            // registered. Callers that want a null-returning behavior (GetService) gate this
+            // method with HasNonKeyedComponent first; callers that require throwing
+            // (GetRequiredService / ISupportRequiredService) rely on the throw to honor the
+            // MS DI contract.
             var instance = _container.Resolve(serviceType);
             if (track)
             {

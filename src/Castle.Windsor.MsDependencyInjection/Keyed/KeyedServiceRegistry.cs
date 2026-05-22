@@ -89,9 +89,11 @@ internal sealed class KeyedServiceRegistry
     {
         lock (_sync)
         {
-            // Could contain duplicates, as AnyKey expansion could be enumerated twice
-            // So use HashSet to deduplicate
-            var result = new HashSet<string>();
+            // Registration order matters - parity tests assert ordering. Use a list to
+            // preserve order and a HashSet only as a seen-set (closed-generic + open-generic
+            // lookups can otherwise enumerate the same expansion twice).
+            var result = new List<string>();
+            var seen = new HashSet<string>(StringComparer.Ordinal);
 
             CollectMatches(serviceId.ServiceType);
             if (serviceId.ServiceType.IsConstructedGenericType)
@@ -113,14 +115,14 @@ internal sealed class KeyedServiceRegistry
                 {
                     if (serviceId.Key == KeyedService.AnyKey)
                     {
-                        if (!entry.IsAnyKey && !entry.IsAnyKeyExpansion)
+                        if (!entry.IsAnyKey && !entry.IsAnyKeyExpansion && seen.Add(entry.WindsorName!))
                         {
                             result.Add(entry.WindsorName!);
                         }
                     }
                     else
                     {
-                        if (Equals(entry.Key, serviceId.Key))
+                        if (Equals(entry.Key, serviceId.Key) && seen.Add(entry.WindsorName!))
                         {
                             result.Add(entry.WindsorName!);
                         }
