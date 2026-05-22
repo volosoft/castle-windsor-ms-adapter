@@ -191,20 +191,11 @@ namespace Castle.Windsor.MsDependencyInjection
                 return true;
             }
 
-            if (serviceType.IsConstructedGenericType &&
-                serviceType.GetGenericTypeDefinition() is { } genericDefinition)
+            // We special case IEnumerable since it isn't explicitly registered in the container
+            // yet we can manifest instances of it when requested.
+            if (ServiceResolveHelper.IsEnumerable(serviceType))
             {
-                // We special case IEnumerable since it isn't explicitly registered in the container
-                // yet we can manifest instances of it when requested.
-                if (genericDefinition == typeof(IEnumerable<>))
-                {
-                    return true;
-                }
-
-                if (ServiceResolveHelper.HasNonKeyedComponent(_container, _registry, genericDefinition))
-                {
-                    return true;
-                }
+                return true;
             }
 
             return serviceType == typeof(IServiceProvider) ||
