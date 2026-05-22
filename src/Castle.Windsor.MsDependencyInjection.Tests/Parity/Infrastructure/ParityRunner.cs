@@ -48,7 +48,7 @@ public sealed class ParityContext
 /// Differential test harness for the keyed-services adapter.
 /// <para>
 /// Every scenario is executed twice from one identical <see cref="IServiceCollection"/> setup: once
-/// against the real Microsoft.Extensions.DependencyInjection 8.0.0 container (the <i>reference</i>
+/// against the real Microsoft.Extensions.DependencyInjection 10.0.0 container (the <i>reference</i>
 /// implementation) and once against the Castle Windsor adapter. The reference always runs first: if
 /// the check fails there, the expectation itself is wrong (not the adapter), and the failure says so.
 /// A failure on the Windsor run is reported as <c>[Windsor divergence] &lt;scenario&gt;:</c> so the
@@ -60,7 +60,7 @@ public static class ParityRunner
     /// <summary>
     /// Runs the exact same assertion delegate against both backends. Use this when the expected
     /// behavior can be asserted directly (a returned type, an instance count, a thrown-or-not check).
-    /// The reference run validates that the assertion is a correct statement of MS DI 8.0.0 behavior;
+    /// The reference run validates that the assertion is a correct statement of MS DI 10.0.0 behavior;
     /// the Windsor run then verifies the adapter matches it.
     /// </summary>
     public static void RunAssertParity(
@@ -188,7 +188,7 @@ public static class ParityRunner
 
     private enum Backend
     {
-        /// <summary>The real Microsoft.Extensions.DependencyInjection container (the 8.0.0 oracle).</summary>
+        /// <summary>The real Microsoft.Extensions.DependencyInjection container (the 10.0.0 oracle).</summary>
         Ms,
 
         /// <summary>The Castle Windsor adapter under test.</summary>

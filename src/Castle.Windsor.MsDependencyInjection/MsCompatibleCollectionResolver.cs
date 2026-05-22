@@ -18,7 +18,7 @@ namespace Castle.Windsor.MsDependencyInjection
         {
             if (!kernel.HasComponent(typeof(KeyedServiceRegistry)))
             {
-                throw new InvalidOperationException($"Kernel shall have {typeof(KeyedServiceRegistry).FullName} registered)");
+                throw new InvalidOperationException($"Kernel must have {typeof(KeyedServiceRegistry).FullName} registered.");
             }
 
             _keyedServicesRegistry = kernel.Resolve<KeyedServiceRegistry>();
