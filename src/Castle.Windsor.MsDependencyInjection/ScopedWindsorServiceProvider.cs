@@ -1,7 +1,5 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using Castle.Windsor.MsDependencyInjection.Keyed;
 using Microsoft.Extensions.DependencyInjection;
@@ -67,22 +65,20 @@ namespace Castle.Windsor.MsDependencyInjection
         private object ResolveInstanceOrNull(Type serviceType, bool isOptional, bool track)
         {
             // Check if given service is directly registered as a non-keyed component
-            if (HasNonKeyedComponent(serviceType))
+            if (ServiceResolveHelper.HasNonKeyedComponent(_container, _registry, serviceType))
             {
-                return ContainerResolve(serviceType, track);
+                return ServiceResolveHelper.Resolve(_container, serviceType, track ? OwnMsLifetimeScope : null);
             }
 
             // Check if requested IEnumerable<TService>
             // MS uses GetService<IEnumerable<TService>>() to get a collection.
             // This must be resolved with IWindsorContainer.ResolveAll();
-            if (IsEnumerable(serviceType))
+            if (ServiceResolveHelper.IsEnumerable(serviceType))
             {
                 var itemType = serviceType.GenericTypeArguments[0];
-                var keys = _container.Kernel.GetAssignableHandlers(itemType)
-                    .Select(x => x.ComponentModel.Name)
-                    .Where(x => !_registry.IsKeyedService(x));
+                var keys = ServiceResolveHelper.GetNonKeyedHandlerNames(_container, _registry, itemType);
 
-                return ContainerResolveAll(keys, itemType, track);
+                return ServiceResolveHelper.ResolveAllByName(_container, itemType, keys, track ? OwnMsLifetimeScope : null);
             }
 
             if (isOptional)
@@ -120,7 +116,7 @@ namespace Castle.Windsor.MsDependencyInjection
                 return GetServiceInternal(serviceType, isOptional);
             }
 
-            if (serviceKey == KeyedService.AnyKey && !IsEnumerable(serviceType))
+            if (serviceKey == KeyedService.AnyKey && !ServiceResolveHelper.IsEnumerable(serviceType))
             {
                 throw new InvalidOperationException($"The KeyedService.AnyKey can be used to resolve all services only");
             }
@@ -143,7 +139,7 @@ namespace Castle.Windsor.MsDependencyInjection
         private object ResolveKeyedInstanceOrNull(KeyedServiceId serviceId, bool track)
         {
             // IEnumerable<T> keyed collection
-            if (IsEnumerable(serviceId.ServiceType))
+            if (ServiceResolveHelper.IsEnumerable(serviceId.ServiceType))
             {
                 lock (_anyKeyCollectionCache)
                 {
@@ -157,7 +153,7 @@ namespace Castle.Windsor.MsDependencyInjection
                 var itemServiceId = new KeyedServiceId(itemType, serviceId.Key);
                 var keys = _registry.ResolveAllWindsorKeysForService(itemServiceId);
 
-                var result = ContainerResolveAll(keys, itemType, track);
+                var result = ServiceResolveHelper.ResolveAllByName(_container, itemType, keys, track ? OwnMsLifetimeScope : null);
 
                 // Use locking to not corrupt the collection.
                 // It's okay if we resolve it multiple times in case of concurrency.
@@ -172,42 +168,10 @@ namespace Castle.Windsor.MsDependencyInjection
             var windsorKey = _registry.TryResolveWindsorKeyForService(serviceId);
             if (windsorKey != null)
             {
-                return ContainerResolve(windsorKey, serviceId.ServiceType, track);
+                return ServiceResolveHelper.ResolveByName(_container, windsorKey, serviceId.ServiceType, track ? OwnMsLifetimeScope : null);
             }
 
             return null;
-        }
-
-        private bool HasNonKeyedComponent(Type serviceType)
-        {
-            if (!_container.Kernel.HasComponent(serviceType))
-            {
-                return false;
-            }
-
-            var handlers = _container.Kernel.GetHandlers(serviceType);
-            foreach (var h in handlers)
-            {
-                if (!_registry.IsKeyedService(h.ComponentModel.Name))
-                {
-                    return true;
-                }
-            }
-
-            // Also check open-generic handlers if the type is constructed-generic.
-            if (serviceType.IsConstructedGenericType)
-            {
-                var openHandlers = _container.Kernel.GetHandlers(serviceType.GetGenericTypeDefinition());
-                foreach (var h in openHandlers)
-                {
-                    if (!_registry.IsKeyedService(h.ComponentModel.Name))
-                    {
-                        return true;
-                    }
-                }
-            }
-
-            return false;
         }
 
         public bool IsService(Type serviceType)
@@ -222,7 +186,7 @@ namespace Castle.Windsor.MsDependencyInjection
                 return false;
             }
 
-            if (HasNonKeyedComponent(serviceType))
+            if (ServiceResolveHelper.HasNonKeyedComponent(_container, _registry, serviceType))
             {
                 return true;
             }
@@ -237,7 +201,7 @@ namespace Castle.Windsor.MsDependencyInjection
                     return true;
                 }
 
-                if (HasNonKeyedComponent(genericDefinition))
+                if (ServiceResolveHelper.HasNonKeyedComponent(_container, _registry, genericDefinition))
                 {
                     return true;
                 }
@@ -265,64 +229,12 @@ namespace Castle.Windsor.MsDependencyInjection
             }
 
             // MS DI: closed-generic IEnumerable<T> always reports as a keyed service.
-            if (IsEnumerable(serviceType))
+            if (ServiceResolveHelper.IsEnumerable(serviceType))
             {
                 return true;
             }
 
             return _registry.HasExplicitOrAnyKey(new KeyedServiceId(serviceType, serviceKey));
-        }
-
-        private object ContainerResolve(Type serviceType, bool track)
-        {
-            // Let Castle Windsor throw ComponentNotFoundException when the service is not
-            // registered. Callers that want a null-returning behavior (GetService) gate this
-            // method with HasNonKeyedComponent first; callers that require throwing
-            // (GetRequiredService / ISupportRequiredService) rely on the throw to honor the
-            // MS DI contract.
-            var instance = _container.Resolve(serviceType);
-            if (track)
-            {
-                OwnMsLifetimeScope?.AddInstance(instance);
-            }
-
-            return instance;
-        }
-
-        private object ContainerResolve(string key, Type serviceType, bool track)
-        {
-            var instance = _container.Resolve(key, serviceType);
-            if (track)
-            {
-                OwnMsLifetimeScope?.AddInstance(instance);
-            }
-
-            return instance;
-        }
-
-        private object ContainerResolveAll(IEnumerable<string> keys, Type itemType, bool track)
-        {
-            var instances = new List<object>();
-            foreach (var key in keys)
-            {
-                try
-                {
-                    instances.Add(ContainerResolve(key, itemType, track));
-                }
-                catch (Castle.MicroKernel.Handlers.GenericHandlerTypeMismatchException)
-                {
-                    // Open-generic handler whose constraints can't satisfy this closed type.
-                    // ResolveAll silently skips these; mirror that behavior.
-                }
-            }
-            var array = Array.CreateInstance(itemType, instances.Count);
-            ((ICollection)instances).CopyTo(array, 0);
-            return array;
-        }
-
-        private static bool IsEnumerable(Type serviceType)
-        {
-            return serviceType.IsConstructedGenericType && serviceType.GetGenericTypeDefinition() == typeof(IEnumerable<>);
         }
     }
 }

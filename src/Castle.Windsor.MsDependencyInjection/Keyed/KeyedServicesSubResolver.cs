@@ -1,14 +1,11 @@
 #nullable enable
 
 using System;
-using System.Collections;
-using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using Castle.Core;
 using Castle.MicroKernel;
 using Castle.MicroKernel.Context;
-using Castle.MicroKernel.Handlers;
 using Castle.MicroKernel.Resolvers;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -118,83 +115,34 @@ internal sealed class KeyedServicesSubResolver : ISubDependencyResolver
 
     private object? TryResolveKeyed(Type type, object? key)
     {
-        if (IsEnumerable(type))
+        if (ServiceResolveHelper.IsEnumerable(type))
         {
             var itemType = type.GenericTypeArguments[0];
             var names = _keyedRegistry.ResolveAllWindsorKeysForService(new KeyedServiceId(itemType, key));
-            return ResolveAllByName(itemType, names);
+            return ServiceResolveHelper.ResolveAllByName(_container, itemType, names, trackingScope: null);
         }
 
         var name = _keyedRegistry.TryResolveWindsorKeyForService(new KeyedServiceId(type, key));
-        return name != null ? _container.Resolve(name, type) : null;
+        return name != null 
+            ? ServiceResolveHelper.ResolveByName(_container, name, type, trackingScope: null) 
+            : null;
     }
 
     private object? TryResolveNonKeyed(Type type)
     {
-        if (IsEnumerable(type))
+        if (ServiceResolveHelper.IsEnumerable(type))
         {
             var itemType = type.GenericTypeArguments[0];
-            var names = _container.Kernel.GetAssignableHandlers(itemType)
-                .Select(h => h.ComponentModel.Name)
-                .Where(n => !_keyedRegistry.IsKeyedService(n));
-            return ResolveAllByName(itemType, names);
+            var names = ServiceResolveHelper.GetNonKeyedHandlerNames(_container, _keyedRegistry, itemType);
+            return ServiceResolveHelper.ResolveAllByName(_container, itemType, names, trackingScope: null);
         }
 
-        if (!HasNonKeyedComponent(type))
+        if (ServiceResolveHelper.HasNonKeyedComponent(_container, _keyedRegistry, type))
         {
-            return null;
+            return ServiceResolveHelper.Resolve(_container, type, trackingScope: null);
         }
-
-        return _container.Resolve(type);
-    }
-
-    private object ResolveAllByName(Type itemType, IEnumerable<string> names)
-    {
-        var instances = new List<object>();
-        foreach (var name in names)
-        {
-            try
-            {
-                instances.Add(_container.Resolve(name, itemType));
-            }
-            catch (GenericHandlerTypeMismatchException)
-            {
-                // Open-generic handler whose constraints can't satisfy this closed type - mirror ResolveAll.
-            }
-        }
-
-        var array = Array.CreateInstance(itemType, instances.Count);
-        ((ICollection)instances).CopyTo(array, 0);
-        return array;
-    }
-
-    private bool HasNonKeyedComponent(Type serviceType)
-    {
-        if (!_container.Kernel.HasComponent(serviceType))
-        {
-            return false;
-        }
-
-        foreach (var h in _container.Kernel.GetHandlers(serviceType))
-        {
-            if (!_keyedRegistry.IsKeyedService(h.ComponentModel.Name))
-            {
-                return true;
-            }
-        }
-
-        if (serviceType.IsConstructedGenericType)
-        {
-            foreach (var h in _container.Kernel.GetHandlers(serviceType.GetGenericTypeDefinition()))
-            {
-                if (!_keyedRegistry.IsKeyedService(h.ComponentModel.Name))
-                {
-                    return true;
-                }
-            }
-        }
-
-        return false;
+        
+        return null;
     }
 
     private object ResolveServiceKey(ComponentModel model, DependencyModel dependency, KeyedParameterInfo parameter)
@@ -255,7 +203,4 @@ internal sealed class KeyedServicesSubResolver : ISubDependencyResolver
 
         return _typeMetadataRegistry.TryGet(declaringType, matchedParameter, out parameterInfo);
     }
-
-    private static bool IsEnumerable(Type type) =>
-        type.IsConstructedGenericType && type.GetGenericTypeDefinition() == typeof(IEnumerable<>);
 }
