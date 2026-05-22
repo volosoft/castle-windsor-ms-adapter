@@ -1,3 +1,4 @@
+using System.Threading.Tasks;
 using Castle.Windsor.MsDependencyInjection.Tests.Parity.Fakes;
 using Castle.Windsor.MsDependencyInjection.Tests.Parity.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
@@ -188,5 +189,88 @@ namespace Castle.Windsor.MsDependencyInjection.Tests.Parity.Keyed
                     return Outcome.Order(a, b);
                 });
         }
+
+        // Cross-thread within the same scope: two threads both pull from the SAME
+        // IServiceProvider (the scope's). The scoped keyed dep injected via [FromKeyedServices]
+        // must be the SAME instance on both threads. Probes the MsLifetimeScope AsyncLocal
+        // behavior: the scope ServiceProvider's OwnMsLifetimeScope is shared, so even if each
+        // worker thread starts with a different ambient Current, the scope's GetService path
+        // pushes the right scope before resolving.
+        [Fact]
+        public void Keyed_Scoped_FromKeyedServices_SameInstanceAcrossThreadsInSameScope()
+        {
+            ParityRunner.RunOutcomeParity(
+                services =>
+                {
+                    services.AddKeyedScoped<IKeyedFake, KeyedFakeA>("k");
+                    services.AddTransient<FromKeyedCtorConsumer>();
+                },
+                ctx =>
+                {
+                    IKeyedFake a = null, b = null;
+                    ctx.InScope(sp =>
+                    {
+                        var t1 = Task.Run(() => a = sp.GetRequiredService<FromKeyedCtorConsumer>().Dep);
+                        var t2 = Task.Run(() => b = sp.GetRequiredService<FromKeyedCtorConsumer>().Dep);
+                        Task.WaitAll(t1, t2);
+                    });
+                    return Outcome.Order(a, b);
+                });
+        }
+
+        // Nested scope: child scope created from a parent scope must produce a DIFFERENT scoped
+        // keyed instance than the parent scope. Common ABP pattern: root -> tenant -> request.
+        [Fact]
+        public void Keyed_Scoped_FromKeyedServices_NestedScope_DistinctInstances()
+        {
+            ParityRunner.RunOutcomeParity(
+                services =>
+                {
+                    services.AddKeyedScoped<IKeyedFake, KeyedFakeA>("k");
+                    services.AddTransient<FromKeyedCtorConsumer>();
+                },
+                ctx =>
+                {
+                    IKeyedFake outer = null, inner = null, outerAgain = null;
+                    using (var s1 = ctx.Provider.CreateScope())
+                    {
+                        outer = s1.ServiceProvider.GetRequiredService<FromKeyedCtorConsumer>().Dep;
+                        using (var s2 = s1.ServiceProvider.CreateScope())
+                        {
+                            inner = s2.ServiceProvider.GetRequiredService<FromKeyedCtorConsumer>().Dep;
+                        }
+                        outerAgain = s1.ServiceProvider.GetRequiredService<FromKeyedCtorConsumer>().Dep;
+                    }
+                    // Expect: outer == outerAgain (same parent scope), inner != outer (child scope is its own).
+                    return Outcome.Order(outer, inner, outerAgain);
+                });
+        }
+
+        // Complex key: records and other reference types with value-based equality must work as
+        // keys. KeyedServiceRegistry compares with Equals(...), so record value equality should
+        // let two distinct instances of the same record value resolve to the same registration.
+        [Fact]
+        public void Keyed_ComplexKey_Record_ValueEquality_Works()
+        {
+            var keyA1 = new TenantKey(1);
+            var keyA2 = new TenantKey(1);
+            var keyB = new TenantKey(2);
+
+            ParityRunner.RunOutcomeParity(
+                services =>
+                {
+                    services.AddKeyedSingleton<IKeyedFake, KeyedFakeA>(keyA1);
+                    services.AddKeyedSingleton<IKeyedFake, KeyedFakeB>(keyB);
+                },
+                ctx => Outcome.TypeNames(new object[]
+                {
+                    ctx.Provider.GetKeyedService<IKeyedFake>(keyA1),
+                    ctx.Provider.GetKeyedService<IKeyedFake>(keyA2),
+                    ctx.Provider.GetKeyedService<IKeyedFake>(keyB),
+                    ctx.Provider.GetKeyedService<IKeyedFake>(new TenantKey(3)),
+                }));
+        }
+
+        public sealed record TenantKey(int Id);
     }
 }

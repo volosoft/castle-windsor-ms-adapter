@@ -275,5 +275,21 @@ namespace Castle.Windsor.MsDependencyInjection.Tests.Parity.Keyed
                 ctx => Outcome.Result(
                     () => ctx.IsKeyedService.IsKeyedService(typeof(IKeyedFake), KeyedService.AnyKey)));
         }
+
+        // .NET 10 spec: GetKeyedService(AnyKey) is never a valid single-resolve, regardless of
+        // what's registered. Already covered for the "AnyKey only" and "nothing registered"
+        // shapes above (via Outcome.Result throw parity); this pins the edge case where BOTH
+        // explicit and AnyKey registrations are present - the spec still requires the throw.
+        [Fact]
+        public void GetKeyedService_AnyKey_With_Both_Explicit_And_AnyKey_Reg_Throws()
+        {
+            ParityRunner.RunOutcomeParity(
+                services =>
+                {
+                    services.AddKeyedSingleton<IKeyedFake, KeyedFakeA>("k");
+                    services.AddKeyedTransient<IKeyedFake, KeyedFakeB>(KeyedService.AnyKey);
+                },
+                ctx => Outcome.Result(() => ctx.Provider.GetKeyedService<IKeyedFake>(KeyedService.AnyKey)));
+        }
     }
 }
