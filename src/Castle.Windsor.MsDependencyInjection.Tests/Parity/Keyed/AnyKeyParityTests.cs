@@ -304,5 +304,41 @@ namespace Castle.Windsor.MsDependencyInjection.Tests.Parity.Keyed
                 services => services.AddKeyedTransient<IKeyedFake, KeyedFakeA>(KeyedService.AnyKey),
                 ctx => Outcome.TypeNames(ctx.Provider.GetKeyedServices<IKeyedFake>("k")));
         }
+
+        // Same as above, but after a single-instance resolve has already materialized the AnyKey
+        // template for "k". MS DI 10 still returns an empty collection - the published expansion
+        // counts as an AnyKey-backed instance, not an explicit specific-key registration. Without
+        // this case the previous test passes vacuously while the registry could still leak the
+        // expansion into the specific-key collection.
+        [Fact]
+        public void GetKeyedServices_SpecificKey_With_Only_AnyKey_Reg_Stays_Empty_After_WarmUp()
+        {
+            ParityRunner.RunOutcomeParity(
+                services => services.AddKeyedTransient<IKeyedFake, KeyedFakeA>(KeyedService.AnyKey),
+                ctx =>
+                {
+                    ctx.Provider.GetKeyedService<IKeyedFake>("k"); // warm-up triggers AnyKey expansion
+                    return Outcome.TypeNames(ctx.Provider.GetKeyedServices<IKeyedFake>("k"));
+                });
+        }
+
+        // Same as above with explicit "k" + AnyKey both registered. After warm-up, only the
+        // explicit registration must appear in the specific-key collection; the AnyKey expansion
+        // must stay out (this is what MS DI 10 returns).
+        [Fact]
+        public void GetKeyedServices_SpecificKey_With_Explicit_And_AnyKey_Stays_Explicit_Only_After_WarmUp()
+        {
+            ParityRunner.RunOutcomeParity(
+                services =>
+                {
+                    services.AddKeyedTransient<IKeyedFake, KeyedFakeA>("k");
+                    services.AddKeyedTransient<IKeyedFake, KeyedFakeB>(KeyedService.AnyKey);
+                },
+                ctx =>
+                {
+                    ctx.Provider.GetKeyedService<IKeyedFake>("k");
+                    return Outcome.TypeNames(ctx.Provider.GetKeyedServices<IKeyedFake>("k"));
+                });
+        }
     }
 }

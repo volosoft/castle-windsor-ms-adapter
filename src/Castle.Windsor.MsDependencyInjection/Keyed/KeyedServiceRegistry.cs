@@ -122,7 +122,12 @@ internal sealed class KeyedServiceRegistry
                     }
                     else
                     {
-                        if (Equals(entry.Key, serviceId.Key) && seen.Add(entry.WindsorName!))
+                        // AnyKey expansion entries surface in _byType with entry.Key == actualKey,
+                        // but MS DI 10 keeps them out of GetKeyedServices(specific_key) - only
+                        // explicit specific-key registrations count there.
+                        if (!entry.IsAnyKeyExpansion
+                            && Equals(entry.Key, serviceId.Key)
+                            && seen.Add(entry.WindsorName!))
                         {
                             result.Add(entry.WindsorName!);
                         }
