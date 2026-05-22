@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Castle.MicroKernel.Registration;
@@ -283,5 +284,43 @@ namespace Castle.Windsor.MsDependencyInjection.Tests.Parity.Keyed
             sp.GetRequiredKeyedService<IKeyedFake>("instance-key").ShouldBeSameAs(prebuilt);
             (sp as IDisposable)?.Dispose();
         }
+
+        // Regression: MsCompatibleCollectionResolver must be constructed with
+        // allowEmptyCollections: true (the pre-PR 4.x adapter did this; the PR rewrite
+        // dropped it). The MS DI contract says an IEnumerable<T> dependency is satisfied
+        // with an empty sequence when no T is registered. Without
+        // allowEmptyCollections: true, CollectionResolver.CanResolve returns false in that
+        // case and the constructor injection falls through to a hard failure.
+        //
+        // This surfaced as a HandlerException ("Can't create component <X> as it has
+        // dependencies to be satisfied") when running a real ASP.NET Zero / Abp 11.2.0
+        // Web.Mvc host: an ABP/Castle component took a ctor IEnumerable<T> for which no
+        // implementation was registered in that host configuration.
+        [Fact]
+        public void Empty_EnumerableDependency_Injected_As_Empty_Sequence()
+        {
+            var (sp, _) = BuildWindsor(s =>
+            {
+                // EmptyCollectionConsumer ctor takes IEnumerable<INeverRegisteredService>,
+                // but INeverRegisteredService is never registered.
+                s.AddTransient<EmptyCollectionConsumer>();
+            });
+
+            var consumer = sp.GetRequiredService<EmptyCollectionConsumer>();
+            consumer.Items.ShouldBeEmpty();
+            (sp as IDisposable)?.Dispose();
+        }
+    }
+
+    public interface INeverRegisteredService { }
+
+    public sealed class EmptyCollectionConsumer
+    {
+        public EmptyCollectionConsumer(System.Collections.Generic.IEnumerable<INeverRegisteredService> items)
+        {
+            Items = items.ToList();
+        }
+
+        public System.Collections.Generic.IReadOnlyList<INeverRegisteredService> Items { get; }
     }
 }
