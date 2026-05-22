@@ -16,7 +16,7 @@ namespace Castle.Windsor.MsDependencyInjection.Keyed;
 /// </summary>
 internal sealed class KeyedServiceRegistry
 {
-    internal const string KeyedNamePrefix = "MsKeyed_";
+    private const string KeyedNamePrefix = "MsKeyed_";
 
     private readonly object _sync = new();
 
@@ -62,7 +62,7 @@ internal sealed class KeyedServiceRegistry
 
     public string? TryResolveWindsorKeyForService(KeyedServiceId serviceId)
     {
-        Lazy<string>? deferredExpansion;
+        Lazy<string>? anyKeyExpansion = null;
         lock (_sync)
         {
             if (TryGetLastExplicitKeyName(serviceId, out var windsorName))
@@ -70,19 +70,22 @@ internal sealed class KeyedServiceRegistry
                 return windsorName;
             }
 
-            if (!TryGetLastAnyKeyTemplate(serviceId.ServiceType, out var template))
+            if (TryGetLastAnyKeyTemplate(serviceId.ServiceType, out var template))
             {
-                return null;
+                anyKeyExpansion = GetOrCreateAnyKeyExpansionLazy(template, serviceId.Key);
             }
-
-            deferredExpansion = GetOrCreateExpansionLazy(template, serviceId.Key);
         }
 
         // Force the registration outside _sync: the factory inside the Lazy reacquires _sync
         // briefly to publish the name->key mapping and the _byType entry, then invokes
         // container.Register without holding _sync. This breaks the _sync -> Windsor-lock
         // ordering that would otherwise risk a cross-lock deadlock with concurrent resolves.
-        return deferredExpansion.Value;
+        if (anyKeyExpansion != null)
+        {
+            return anyKeyExpansion.Value;
+        }
+
+        return null;
     }
 
     public IReadOnlyCollection<string> ResolveAllWindsorKeysForService(KeyedServiceId serviceId)
@@ -199,7 +202,7 @@ internal sealed class KeyedServiceRegistry
     /// it if needed. Caller must hold <see cref="_sync"/>. The Lazy.Value call must happen OUTSIDE
     /// the lock — see <see cref="TryResolveWindsorKeyForService"/>.
     /// </summary>
-    private Lazy<string> GetOrCreateExpansionLazy(AnyKeyTemplate template, object? actualKey)
+    private Lazy<string> GetOrCreateAnyKeyExpansionLazy(AnyKeyTemplate template, object? actualKey)
     {
         var expansionKey = new AnyKeyTemplateExpansionKey(template.Id, actualKey);
         if (_anyKeyExpansions.TryGetValue(expansionKey, out var existing))
@@ -207,57 +210,55 @@ internal sealed class KeyedServiceRegistry
             return existing;
         }
 
-        var lazy = new Lazy<string>(
-            () => RegisterExpansion(template, actualKey),
-            LazyThreadSafetyMode.ExecutionAndPublication);
+        var lazy = new Lazy<string>(RegisterExpansion, LazyThreadSafetyMode.ExecutionAndPublication);
         _anyKeyExpansions[expansionKey] = lazy;
         return lazy;
-    }
 
-    /// <summary>
-    /// Runs OUTSIDE <see cref="_sync"/>. Order:
-    /// (1) Publish <c>_windsorNameToKey[name] = actualKey</c> under a short _sync section, so
-    ///     <c>[ServiceKey]</c> resolution during the registration call has the mapping ready.
-    /// (2) Invoke <c>container.Register</c> without holding _sync (avoids the
-    ///     _sync -> Windsor-lock ordering that would deadlock against another thread holding
-    ///     the Windsor lock and waiting on _sync via the sub-resolver).
-    /// (3) Publish the <c>_byType</c> entry AFTER the Register call returns, so concurrent
-    ///     <c>TryResolveWindsorKeyForService</c> calls for the same (type, key) cannot pick up
-    ///     the name from <c>_byType</c> and reach <c>container.Resolve(name)</c> before Windsor
-    ///     finishes registering. Other concurrent callers for the same (template, key) come in
-    ///     through the shared <see cref="Lazy{T}"/> and block until this method returns.
-    /// </summary>
-    private string RegisterExpansion(AnyKeyTemplate template, object? actualKey)
-    {
-        var name = GenerateRandomWindsorName();
-
-        // (1) Publish the name->key mapping BEFORE the Windsor component is registered. Windsor
-        // evaluates constructor-bound sub-resolvers (including [ServiceKey] via
-        // KeyedServicesSubResolver) during Register, and ServiceKeyInjectionParityTests breaks
-        // if the mapping isn't visible at that point. Verified empirically: moving this to
-        // post-register fails ServiceKey_Via_AnyKey_Gets_Actual_Key,
-        // FromKeyedServices_Parameterless_Inherits_Parent_Key and three more.
-        lock (_sync)
+        // <summary>
+        // Runs OUTSIDE <see cref="_sync"/>. Order:
+        // (1) Publish <c>_windsorNameToKey[name] = actualKey</c> under a short _sync section, so
+        //     <c>[ServiceKey]</c> resolution during the registration call has the mapping ready.
+        // (2) Invoke <c>container.Register</c> without holding _sync (avoids the
+        //     _sync -> Windsor-lock ordering that would deadlock against another thread holding
+        //     the Windsor lock and waiting on _sync via the sub-resolver).
+        // (3) Publish the <c>_byType</c> entry AFTER the Register call returns, so concurrent
+        //     <c>TryResolveWindsorKeyForService</c> calls for the same (type, key) cannot pick up
+        //     the name from <c>_byType</c> and reach <c>container.Resolve(name)</c> before Windsor
+        //     finishes registering. Other concurrent callers for the same (template, key) come in
+        //     through the shared <see cref="Lazy{T}"/> and block until this method returns.
+        // </summary>
+        string RegisterExpansion()
         {
-            _windsorNameToKey[name] = actualKey;
+            var name = GenerateRandomWindsorName();
+
+            // (1) Publish the name->key mapping BEFORE the Windsor component is registered. Windsor
+            // evaluates constructor-bound sub-resolvers (including [ServiceKey] via
+            // KeyedServicesSubResolver) during Register, and ServiceKeyInjectionParityTests breaks
+            // if the mapping isn't visible at that point. Verified empirically: moving this to
+            // post-register fails ServiceKey_Via_AnyKey_Gets_Actual_Key,
+            // FromKeyedServices_Parameterless_Inherits_Parent_Key and three more.
+            lock (_sync)
+            {
+                _windsorNameToKey[name] = actualKey;
+            }
+
+            // (2) Run container.Register OUTSIDE _sync to avoid a _sync -> Windsor-lock ordering
+            //     that would deadlock against threads holding the Windsor lock and waiting on
+            //     _sync via the sub-resolver.
+            template.DoRegisterExpansion.Invoke(name, actualKey);
+
+            // (3) Publish the _byType entry AFTER Register completes. Other threads asking
+            //     TryResolveWindsorKeyForService for the same (type, key) would otherwise pick up
+            //     the name from _byType and reach _container.Resolve(name) before Windsor finishes
+            //     registering. Concurrent callers for the same (template, key) go through the shared
+            //     Lazy and block until this method returns.
+            lock (_sync)
+            {
+                GetOrAddByTypeList(template.ServiceType).Add(KeyedEntry.AnyKeyExpansion(name, actualKey));
+            }
+
+            return name;
         }
-
-        // (2) Run container.Register OUTSIDE _sync to avoid a _sync -> Windsor-lock ordering
-        //     that would deadlock against threads holding the Windsor lock and waiting on
-        //     _sync via the sub-resolver.
-        template.DoRegisterExpansion.Invoke(name, actualKey);
-
-        // (3) Publish the _byType entry AFTER Register completes. Other threads asking
-        //     TryResolveWindsorKeyForService for the same (type, key) would otherwise pick up
-        //     the name from _byType and reach _container.Resolve(name) before Windsor finishes
-        //     registering. Concurrent callers for the same (template, key) go through the shared
-        //     Lazy and block until this method returns.
-        lock (_sync)
-        {
-            GetOrAddByTypeList(template.ServiceType).Add(KeyedEntry.AnyKeyExpansion(name, actualKey));
-        }
-
-        return name;
     }
 
     private bool TryGetLastExplicitKeyName(KeyedServiceId id, [NotNullWhen(true)] out string? windsorName)
