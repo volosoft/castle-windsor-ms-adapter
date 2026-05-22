@@ -113,12 +113,15 @@ namespace Castle.Windsor.MsDependencyInjection
         private static void AddSubResolvers(IWindsorContainer container)
         {
             // [FromKeyedServices] / [ServiceKey] constructor parameter injection.
-            // Has to be the first one, so it handles keyed collections
+            // Has to be the first one, so it handles keyed collections.
+            // The sub-resolver takes the container directly: routing through ScopedWindsorServiceProvider
+            // would push that provider's own MsLifetimeScope onto the AsyncLocal, and the captured-at-
+            // registration provider holds a null scope, downgrading scoped keyed services to transient.
             container.Kernel.Resolver.AddSubResolver(
                 new KeyedServicesSubResolver(
                     container.Resolve<TypeKeyedMetadataRegistry>(),
                     container.Resolve<KeyedServiceRegistry>(),
-                    container.Resolve<ScopedWindsorServiceProvider>()));
+                    container));
 
             // ASP.NET Core uses IEnumerable<T> to resolve a list of types.
             // Since some of these types are optional, Windsor must also return empty collections.

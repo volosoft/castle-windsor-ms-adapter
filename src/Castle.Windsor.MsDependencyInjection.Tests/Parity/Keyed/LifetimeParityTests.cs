@@ -120,5 +120,73 @@ namespace Castle.Windsor.MsDependencyInjection.Tests.Parity.Keyed
                     ctx.Provider.GetKeyedService<IKeyedFake>("k"),
                     ctx.Provider.GetKeyedService<IKeyedFake>("k")));
         }
+
+        // Regression: scoped keyed services injected via [FromKeyedServices] used to be silently
+        // downgraded to transient because the sub-resolver routed through a ScopedWindsorServiceProvider
+        // captured with a null MsLifetimeScope, which then overwrote AsyncLocal.Current to null
+        // during keyed lookup. MsScopedLifestyleManager.Resolve falls back to transient when
+        // Current is null, so two consumers inside the same scope each received a fresh instance.
+        [Fact]
+        public void Keyed_Scoped_FromKeyedServices_SameInstanceWithinScope()
+        {
+            ParityRunner.RunOutcomeParity(
+                services =>
+                {
+                    services.AddKeyedScoped<IKeyedFake, KeyedFakeA>("k");
+                    services.AddTransient<FromKeyedCtorConsumer>();
+                },
+                ctx =>
+                {
+                    IKeyedFake a = null, b = null;
+                    ctx.InScope(sp =>
+                    {
+                        a = sp.GetRequiredService<FromKeyedCtorConsumer>().Dep;
+                        b = sp.GetRequiredService<FromKeyedCtorConsumer>().Dep;
+                    });
+                    return Outcome.Order(a, b);
+                });
+        }
+
+        [Fact]
+        public void Keyed_Scoped_FromKeyedServices_DistinctAcrossScopes()
+        {
+            ParityRunner.RunOutcomeParity(
+                services =>
+                {
+                    services.AddKeyedScoped<IKeyedFake, KeyedFakeA>("k");
+                    services.AddTransient<FromKeyedCtorConsumer>();
+                },
+                ctx =>
+                {
+                    IKeyedFake a = null, b = null;
+                    ctx.InScope(sp => a = sp.GetRequiredService<FromKeyedCtorConsumer>().Dep);
+                    ctx.InScope(sp => b = sp.GetRequiredService<FromKeyedCtorConsumer>().Dep);
+                    return Outcome.Order(a, b);
+                });
+        }
+
+        // Inherit-key path: parent and child are both scoped keyed; child uses parameterless
+        // [FromKeyedServices] to inherit the parent's key. Within one scope two distinct parents
+        // must produce two distinct children that are still scope-local.
+        [Fact]
+        public void Keyed_Scoped_FromKeyedServices_Inherit_SameInstanceWithinScope()
+        {
+            ParityRunner.RunOutcomeParity(
+                services =>
+                {
+                    services.AddKeyedScoped<IInheritChild, InheritChild>("k");
+                    services.AddKeyedScoped<IInheritParent, InheritKeyParent>("k");
+                },
+                ctx =>
+                {
+                    IInheritChild a = null, b = null;
+                    ctx.InScope(sp =>
+                    {
+                        a = sp.GetRequiredKeyedService<IInheritParent>("k").Child;
+                        b = sp.GetRequiredKeyedService<IInheritParent>("k").Child;
+                    });
+                    return Outcome.Order(a, b);
+                });
+        }
     }
 }

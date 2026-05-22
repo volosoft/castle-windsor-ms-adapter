@@ -1,33 +1,43 @@
 #nullable enable
 
 using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using Castle.Core;
 using Castle.MicroKernel;
 using Castle.MicroKernel.Context;
+using Castle.MicroKernel.Handlers;
 using Castle.MicroKernel.Resolvers;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Castle.Windsor.MsDependencyInjection.Keyed;
 
 /// <summary>
-/// Resolves constructor parameters annotated with <c>[FromKeyedServices]</c> or <c>[ServiceKey]</c>
+/// Resolves constructor parameters annotated with <c>[FromKeyedServices]</c> or <c>[ServiceKey]</c>.
+/// <para>
+/// Uses the container directly (instead of going through <see cref="ScopedWindsorServiceProvider"/>)
+/// so the ambient <see cref="MsLifetimeScope.Current"/> of the in-flight resolution is preserved.
+/// Routing through a service-provider instance would push that provider's own
+/// <c>OwnMsLifetimeScope</c> onto the AsyncLocal, and the captured-at-registration provider
+/// holds a null scope — which silently downgrades scoped keyed services to transient.
+/// </para>
 /// </summary>
 internal sealed class KeyedServicesSubResolver : ISubDependencyResolver
 {
     private readonly TypeKeyedMetadataRegistry _typeMetadataRegistry;
     private readonly KeyedServiceRegistry _keyedRegistry;
-    private readonly ScopedWindsorServiceProvider _serviceProvider;
+    private readonly IWindsorContainer _container;
 
     public KeyedServicesSubResolver(
         TypeKeyedMetadataRegistry typeMetadataRegistry,
         KeyedServiceRegistry keyedRegistry,
-        ScopedWindsorServiceProvider serviceProvider)
+        IWindsorContainer container)
     {
         _typeMetadataRegistry = typeMetadataRegistry;
         _keyedRegistry = keyedRegistry;
-        _serviceProvider = serviceProvider;
+        _container = container;
     }
 
     public bool CanResolve(CreationContext context, ISubDependencyResolver contextHandlerResolver, ComponentModel model, DependencyModel dependency)
@@ -67,36 +77,35 @@ internal sealed class KeyedServicesSubResolver : ISubDependencyResolver
 
     private object ResolveFromKeyed(ComponentModel model, DependencyModel dependency, KeyedParameterInfo parameterInfo)
     {
-        object? serviceProviderValue;
         var parameterType = parameterInfo.ParameterType;
+        object? resolved;
 
         switch (parameterInfo.LookupMode)
         {
             // [FromKeyedServices(null)] behaves like a plain non-keyed injection.
             case ServiceKeyLookupMode.NullKey:
-                serviceProviderValue = _serviceProvider.GetService(parameterType);
+                resolved = TryResolveNonKeyed(parameterType);
                 break;
 
             // Parameterless [FromKeyedServices]: resolve with the key the enclosing
-            // component was itself resolved with.
+            // component was itself resolved with; non-keyed enclosing -> non-keyed injection.
             case ServiceKeyLookupMode.InheritKey:
-                serviceProviderValue = _keyedRegistry.TryGetServiceKeyByWindsorName(model.Name, out var inheritedKey)
-                    ? _serviceProvider.GetKeyedService(parameterType, serviceKey: inheritedKey)
-                    // Enclosing component is not keyed -> behaves as a non-keyed injection.
-                    : _serviceProvider.GetService(parameterType);
+                resolved = _keyedRegistry.TryGetServiceKeyByWindsorName(model.Name, out var inheritedKey)
+                    ? TryResolveKeyed(parameterType, inheritedKey)
+                    : TryResolveNonKeyed(parameterType);
                 break;
 
             case ServiceKeyLookupMode.ExplicitKey:
-                serviceProviderValue = _serviceProvider.GetKeyedService(parameterType, serviceKey: parameterInfo.Key);
+                resolved = TryResolveKeyed(parameterType, parameterInfo.Key);
                 break;
 
             default:
                 throw new ArgumentOutOfRangeException();
         }
 
-        if (serviceProviderValue is not null)
+        if (resolved is not null)
         {
-            return serviceProviderValue;
+            return resolved;
         }
 
         if (dependency.HasDefaultValue)
@@ -105,6 +114,87 @@ internal sealed class KeyedServicesSubResolver : ISubDependencyResolver
         }
 
         throw new InvalidOperationException($"No service for type '{parameterInfo.ParameterType}' has been registered with key '{parameterInfo.Key}'.");
+    }
+
+    private object? TryResolveKeyed(Type type, object? key)
+    {
+        if (IsEnumerable(type))
+        {
+            var itemType = type.GenericTypeArguments[0];
+            var names = _keyedRegistry.ResolveAllWindsorKeysForService(new KeyedServiceId(itemType, key));
+            return ResolveAllByName(itemType, names);
+        }
+
+        var name = _keyedRegistry.TryResolveWindsorKeyForService(new KeyedServiceId(type, key));
+        return name != null ? _container.Resolve(name, type) : null;
+    }
+
+    private object? TryResolveNonKeyed(Type type)
+    {
+        if (IsEnumerable(type))
+        {
+            var itemType = type.GenericTypeArguments[0];
+            var names = _container.Kernel.GetAssignableHandlers(itemType)
+                .Select(h => h.ComponentModel.Name)
+                .Where(n => !_keyedRegistry.IsKeyedService(n));
+            return ResolveAllByName(itemType, names);
+        }
+
+        if (!HasNonKeyedComponent(type))
+        {
+            return null;
+        }
+
+        return _container.Resolve(type);
+    }
+
+    private object ResolveAllByName(Type itemType, IEnumerable<string> names)
+    {
+        var instances = new List<object>();
+        foreach (var name in names)
+        {
+            try
+            {
+                instances.Add(_container.Resolve(name, itemType));
+            }
+            catch (GenericHandlerTypeMismatchException)
+            {
+                // Open-generic handler whose constraints can't satisfy this closed type - mirror ResolveAll.
+            }
+        }
+
+        var array = Array.CreateInstance(itemType, instances.Count);
+        ((ICollection)instances).CopyTo(array, 0);
+        return array;
+    }
+
+    private bool HasNonKeyedComponent(Type serviceType)
+    {
+        if (!_container.Kernel.HasComponent(serviceType))
+        {
+            return false;
+        }
+
+        foreach (var h in _container.Kernel.GetHandlers(serviceType))
+        {
+            if (!_keyedRegistry.IsKeyedService(h.ComponentModel.Name))
+            {
+                return true;
+            }
+        }
+
+        if (serviceType.IsConstructedGenericType)
+        {
+            foreach (var h in _container.Kernel.GetHandlers(serviceType.GetGenericTypeDefinition()))
+            {
+                if (!_keyedRegistry.IsKeyedService(h.ComponentModel.Name))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     private object ResolveServiceKey(ComponentModel model, DependencyModel dependency, KeyedParameterInfo parameter)
@@ -165,4 +255,7 @@ internal sealed class KeyedServicesSubResolver : ISubDependencyResolver
 
         return _typeMetadataRegistry.TryGet(declaringType, matchedParameter, out parameterInfo);
     }
+
+    private static bool IsEnumerable(Type type) =>
+        type.IsConstructedGenericType && type.GetGenericTypeDefinition() == typeof(IEnumerable<>);
 }
