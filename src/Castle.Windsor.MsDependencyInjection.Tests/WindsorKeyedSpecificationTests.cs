@@ -22,10 +22,11 @@ namespace Castle.Windsor.MsDependencyInjection.Tests
         public void Dispose()
         {
             // Ensure no scope leaks across tests.
+            MsLifetimeScope.Current.ShouldBeNull();
         }
 
         // -----------------------------------------------------------------------------------------
-        // Documented behavioral divergences from MS DI 8.0.0. Each test runs the SAME scenario
+        // Documented behavioral divergences from MS DI 10.0.0. Each test runs the SAME scenario
         // against both backends in-line (no parity-runner infrastructure) and asserts the differing
         // outcomes side-by-side, so the divergence is visible in one place.
         // -----------------------------------------------------------------------------------------

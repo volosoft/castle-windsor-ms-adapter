@@ -291,5 +291,18 @@ namespace Castle.Windsor.MsDependencyInjection.Tests.Parity.Keyed
                 },
                 ctx => Outcome.Result(() => ctx.Provider.GetKeyedService<IKeyedFake>(KeyedService.AnyKey)));
         }
+
+        // .NET 10 spec (verified against MS DI 10.0.0): GetKeyedServices<T>(specific_key) does
+        // NOT expand an AnyKey registration into the returned collection. The AnyKey template is
+        // only materialized into a concrete component by a single-instance
+        // GetKeyedService<T>(specific_key) resolve. This pins the spec so a future change cannot
+        // silently make the collection include AnyKey-backed instances.
+        [Fact]
+        public void GetKeyedServices_SpecificKey_With_Only_AnyKey_Reg_Returns_Empty()
+        {
+            ParityRunner.RunOutcomeParity(
+                services => services.AddKeyedTransient<IKeyedFake, KeyedFakeA>(KeyedService.AnyKey),
+                ctx => Outcome.TypeNames(ctx.Provider.GetKeyedServices<IKeyedFake>("k")));
+        }
     }
 }
