@@ -1,8 +1,8 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <Version>4.1.0</Version>
-    <TargetFramework>net6.0</TargetFramework>
+    <Version>5.0.0</Version>
+    <TargetFramework>net8.0</TargetFramework>
     <AssemblyName>Castle.Windsor.MsDependencyInjection</AssemblyName>
     <PackageId>Castle.Windsor.MsDependencyInjection</PackageId>
     <PackageTags>Windsor;Castle;AspNetCore;DI;IoC;DNX;DependencyInjection;Extensions</PackageTags>
@@ -16,15 +16,15 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <None Include="bin\Release\net6.0\Castle.Windsor.MsDependencyInjection.pdb">
-      <PackagePath>lib/net6.0/</PackagePath>
+    <None Include="bin\Release\net8.0\Castle.Windsor.MsDependencyInjection.pdb">
+      <PackagePath>lib/net8.0/</PackagePath>
       <Pack>true</Pack>
     </None>
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="7.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Options" Version="7.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.0" />
     <PackageReference Include="Castle.Windsor" Version="6.0.0" />
     <PackageReference Include="Castle.Core" Version="5.1.1" />
     <PackageReference Include="SourceLink.Create.CommandLine" Version="2.8.3" PrivateAssets="All" />
