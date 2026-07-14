@@ -1,7 +1,4 @@
 using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Linq;
 using Castle.Core;
 using Castle.MicroKernel;
 using Castle.MicroKernel.Context;
@@ -40,37 +37,10 @@ namespace Castle.Windsor.MsDependencyInjection
             DependencyModel dependency)
         {
             var itemType = base.GetItemType(dependency.TargetItemType);
-            var handlers = kernel.GetAssignableHandlers(itemType);
 
-            if (!handlers.Any(handler => _keyedServicesRegistry.IsKeyedService(handler.ComponentModel.Name)))
-            {
-                var items = base.Resolve(context, contextHandlerResolver, model, dependency);
-                if (items is Array resolvedItems)
-                {
-                    Array.Reverse(resolvedItems);
-                }
-
-                return items;
-            }
-
-            // Filter keyed components out of the non-keyed collection: build the array
-            // from the non-keyed handlers ourselves so we never resolve a keyed component
-            // as part of an IEnumerable<T> non-keyed request.
-            // That is a part of spec for keyed services isolation.
-            var instances = new List<object>(handlers.Length);
-            foreach (var handler in handlers)
-            {
-                if (_keyedServicesRegistry.IsKeyedService(handler.ComponentModel.Name))
-                {
-                    continue;
-                }
-
-                instances.Add(kernel.Resolve(handler.ComponentModel.Name, itemType));
-            }
-
-            var array = Array.CreateInstance(itemType, instances.Count);
-            ((ICollection)instances).CopyTo(array, 0);
-            return array;
+            // Shared with the [FromKeyedServices(null)] path; null means defer so EmptyCollectionResolving fires.
+            var array = ServiceResolveHelper.ResolveNonKeyedCollectionInContext(kernel, _keyedServicesRegistry, itemType, context);
+            return array ?? base.Resolve(context, contextHandlerResolver, model, dependency);
         }
     }
 }

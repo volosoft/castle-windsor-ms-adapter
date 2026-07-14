@@ -67,12 +67,12 @@ internal sealed class KeyedServicesSubResolver : ISubDependencyResolver
         return parameterInfo.Kind switch
         {
             KeyedParameterKind.ServiceKey => ResolveServiceKey(model, dependency, parameterInfo),
-            KeyedParameterKind.FromKeyed => ResolveFromKeyed(model, dependency, parameterInfo),
+            KeyedParameterKind.FromKeyed => ResolveFromKeyed(context, model, dependency, parameterInfo),
             _ => throw new ArgumentOutOfRangeException()
         };
     }
 
-    private object ResolveFromKeyed(ComponentModel model, DependencyModel dependency, KeyedParameterInfo parameterInfo)
+    private object ResolveFromKeyed(CreationContext context, ComponentModel model, DependencyModel dependency, KeyedParameterInfo parameterInfo)
     {
         var parameterType = parameterInfo.ParameterType;
         object? resolved;
@@ -81,7 +81,7 @@ internal sealed class KeyedServicesSubResolver : ISubDependencyResolver
         {
             // [FromKeyedServices(null)] behaves like a plain non-keyed injection.
             case ServiceKeyLookupMode.NullKey:
-                resolved = TryResolveNonKeyed(parameterType);
+                resolved = TryResolveNonKeyed(context, parameterType);
                 break;
 
             // Parameterless [FromKeyedServices]: resolve with the key the enclosing
@@ -89,7 +89,7 @@ internal sealed class KeyedServicesSubResolver : ISubDependencyResolver
             case ServiceKeyLookupMode.InheritKey:
                 resolved = _keyedRegistry.TryGetServiceKeyByWindsorName(model.Name, out var inheritedKey)
                     ? TryResolveKeyed(parameterType, inheritedKey)
-                    : TryResolveNonKeyed(parameterType);
+                    : TryResolveNonKeyed(context, parameterType);
                 break;
 
             case ServiceKeyLookupMode.ExplicitKey:
@@ -128,13 +128,14 @@ internal sealed class KeyedServicesSubResolver : ISubDependencyResolver
             : null;
     }
 
-    private object? TryResolveNonKeyed(Type type)
+    private object? TryResolveNonKeyed(CreationContext context, Type type)
     {
         if (ServiceResolveHelper.IsEnumerable(type))
         {
+            // Shared with MsCompatibleCollectionResolver; null means defer so EmptyCollectionResolving fires.
             var itemType = type.GenericTypeArguments[0];
-            var names = ServiceResolveHelper.GetNonKeyedHandlerNames(_container, _keyedRegistry, itemType);
-            return ServiceResolveHelper.ResolveAllByName(_container, itemType, names, trackingScope: null);
+            var array = ServiceResolveHelper.ResolveNonKeyedCollectionInContext(_container.Kernel, _keyedRegistry, itemType, context);
+            return array ?? _container.Kernel.ResolveAll(itemType, context.AdditionalArguments);
         }
 
         if (ServiceResolveHelper.HasNonKeyedComponent(_container, _keyedRegistry, type))

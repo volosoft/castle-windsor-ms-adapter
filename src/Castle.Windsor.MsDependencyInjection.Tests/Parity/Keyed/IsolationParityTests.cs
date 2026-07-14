@@ -35,6 +35,20 @@ namespace Castle.Windsor.MsDependencyInjection.Tests.Parity.Keyed
         }
 
         [Fact]
+        public void NonKeyed_GetServices_Uses_Exact_ServiceType_Not_Assignable()
+        {
+            // KeyedFakeA is registered under its concrete type only, so GetServices<IKeyedFake>() must
+            // not include it - MS DI matches descriptors by exact ServiceType, not assignability.
+            ParityRunner.RunOutcomeParity(
+                services =>
+                {
+                    services.AddSingleton<KeyedFakeA>();
+                    services.AddSingleton<IKeyedFake, KeyedFakeB>();
+                },
+                ctx => Outcome.TypeNames(ctx.Provider.GetServices<IKeyedFake>()));
+        }
+
+        [Fact]
         public void Keyed_GetKeyedService_Ignores_NonKeyed()
         {
             ParityRunner.RunAssertParity(
