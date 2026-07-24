@@ -65,6 +65,35 @@ namespace Castle.Windsor.MsDependencyInjection.Tests
         }
 
         /// <summary>
+        /// The keyed parameter here sits at constructor position 1, not 0, so this exercises the
+        /// position-indexed slot mapping directly: an incorrect position-to-slot mapping (an
+        /// off-by-one, or always reading slot 0) would still pass the position-0 tests above but
+        /// fail here. The consumer and its plain dependency are types nested in this test class, so
+        /// the reflection reset of the runtime parameter cache cannot disturb fakes shared with
+        /// other (parallel) test classes.
+        /// </summary>
+        [Fact]
+        public void FromKeyedServices_At_NonZero_Position_Survives_ParameterInfo_Regeneration()
+        {
+            var services = new ServiceCollection();
+            services.AddSingleton<Parity.Infrastructure.DisposeTracker>();
+            services.AddSingleton<PlainDependency>();
+            services.AddSingleton<IKeyedFake, KeyedFakeA>();
+            services.AddKeyedSingleton<IKeyedFake, KeyedFakeB>("k");
+            services.AddTransient<PositionOneKeyedConsumer>();
+
+            var sp = WindsorRegistrationHelper.CreateServiceProvider(new WindsorContainer(), services);
+
+            sp.GetRequiredService<PositionOneKeyedConsumer>().Dep.ShouldBeOfType<KeyedFakeB>();
+
+            ForceFreshParameterInfoGeneration(typeof(PositionOneKeyedConsumer));
+
+            sp.GetRequiredService<PositionOneKeyedConsumer>().Dep.ShouldBeOfType<KeyedFakeB>();
+
+            (sp as IDisposable)?.Dispose();
+        }
+
+        /// <summary>
         /// Simulates losing the GetParameters first-touch race: resets the runtime's lazy
         /// parameter cache so the next call mints fresh <see cref="ParameterInfo"/> instances.
         /// </summary>
@@ -85,9 +114,31 @@ namespace Castle.Windsor.MsDependencyInjection.Tests
 
                 parametersField.SetValue(ctor, null);
 
-                // Sanity-check the premise: the next call must return different instances.
-                ctor.GetParameters()[0].ShouldNotBeSameAs(oldGeneration[0]);
+                // Sanity-check the premise: the next call must mint a fresh instance for every
+                // position, so a test asserting on a non-zero position relies on a real regeneration.
+                var newGeneration = ctor.GetParameters();
+                for (var i = 0; i < oldGeneration.Length; i++)
+                {
+                    newGeneration[i].ShouldNotBeSameAs(oldGeneration[i]);
+                }
             }
+        }
+
+        public sealed class PlainDependency
+        {
+        }
+
+        public sealed class PositionOneKeyedConsumer
+        {
+            public PositionOneKeyedConsumer(PlainDependency plain, [FromKeyedServices("k")] IKeyedFake dep)
+            {
+                Plain = plain;
+                Dep = dep;
+            }
+
+            public PlainDependency Plain { get; }
+
+            public IKeyedFake Dep { get; }
         }
     }
 }
