@@ -12,6 +12,13 @@ namespace Castle.Windsor.MsDependencyInjection.Keyed;
 
 /// <summary>
 /// Service to inspect type constructors and return information about keyed parameters.
+/// <para>
+/// Entries are keyed by constructor metadata token and parameter position, not by
+/// <see cref="ParameterInfo"/> reference: the runtime materializes ParameterInfo arrays lazily
+/// and without synchronization, so threads racing the first <see cref="MethodBase.GetParameters"/>
+/// call can observe different instances for the same parameter. Token and position are stable
+/// across those generations.
+/// </para>
 /// </summary>
 internal sealed class TypeKeyedMetadataRegistry
 {
@@ -43,48 +50,79 @@ internal sealed class TypeKeyedMetadataRegistry
 
         static TypeKeyedMetadata BuildTypeMetadata(Type type)
         {
-            Dictionary<ParameterInfo, KeyedParameterInfo>? metadata = null;
+            Dictionary<int, KeyedParameterInfo?[]>? metadata = null;
 
             foreach (var ctor in type.GetConstructors(BindingFlags.Public | BindingFlags.Instance))
             {
-                foreach (var parameter in ctor.GetParameters())
-                {
-                    var fromKeyed = parameter.GetCustomAttribute<FromKeyedServicesAttribute>();
-                    if (fromKeyed != null)
-                    {
-                        metadata ??= new();
-                        metadata.Add(parameter, new KeyedParameterInfo(
-                            KeyedParameterKind.FromKeyed,
-                            fromKeyed.LookupMode,
-                            fromKeyed.Key,
-                            parameter.ParameterType));
-                        continue;
-                    }
+                var parameters = ctor.GetParameters();
+                KeyedParameterInfo?[]? slots = null;
 
-                    if (parameter.IsDefined(typeof(ServiceKeyAttribute), inherit: true))
+                foreach (var parameter in parameters)
+                {
+                    var info = InspectParameter(parameter);
+                    if (info != null)
                     {
-                        metadata ??= new();
-                        metadata.Add(parameter, new KeyedParameterInfo(
-                            KeyedParameterKind.ServiceKey,
-                            ServiceKeyLookupMode.InheritKey,
-                            null,
-                            parameter.ParameterType));
+                        slots ??= new KeyedParameterInfo?[parameters.Length];
+                        slots[parameter.Position] = info;
                     }
+                }
+
+                if (slots != null)
+                {
+                    metadata ??= new();
+                    metadata.Add(ctor.MetadataToken, slots);
                 }
             }
 
             return new TypeKeyedMetadata(metadata?.ToFrozenDictionary());
         }
+
+        static KeyedParameterInfo? InspectParameter(ParameterInfo parameter)
+        {
+            var fromKeyed = parameter.GetCustomAttribute<FromKeyedServicesAttribute>();
+            if (fromKeyed != null)
+            {
+                return new KeyedParameterInfo(
+                    KeyedParameterKind.FromKeyed,
+                    fromKeyed.LookupMode,
+                    fromKeyed.Key,
+                    parameter.ParameterType);
+            }
+
+            if (parameter.IsDefined(typeof(ServiceKeyAttribute), inherit: true))
+            {
+                return new KeyedParameterInfo(
+                    KeyedParameterKind.ServiceKey,
+                    ServiceKeyLookupMode.InheritKey,
+                    null,
+                    parameter.ParameterType);
+            }
+
+            return null;
+        }
     }
 
-    private sealed record TypeKeyedMetadata(FrozenDictionary<ParameterInfo, KeyedParameterInfo>? Metadata)
+    private sealed record TypeKeyedMetadata(FrozenDictionary<int, KeyedParameterInfo?[]>? Metadata)
     {
         public bool HasKeyedParameters => Metadata != null;
 
         public bool TryGetParameter(ParameterInfo parameter, [NotNullWhen(true)] out KeyedParameterInfo? info)
         {
             info = null;
-            return Metadata?.TryGetValue(parameter, out info) == true;
+
+            if (Metadata == null || parameter.Member is not ConstructorInfo ctor)
+            {
+                return false;
+            }
+
+            if (!Metadata.TryGetValue(ctor.MetadataToken, out var slots)
+                || (uint)parameter.Position >= (uint)slots.Length)
+            {
+                return false;
+            }
+
+            info = slots[parameter.Position];
+            return info != null;
         }
     }
 }
