@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
+using Castle.Core;
 using Castle.Windsor.MsDependencyInjection.Keyed;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -24,8 +26,7 @@ namespace Castle.Windsor.MsDependencyInjection
 
         protected IMsLifetimeScope OwnMsLifetimeScope { get; }
 
-        // Mimic MS container behavior where they cache these collections.
-        // Did it primarily for the parity unit tests to pass
+        // MS DI caches collections only when all elements have a cached lifetime.
         private Dictionary<KeyedServiceId, object> _anyKeyCollectionCache = new();
 
         public ScopedWindsorServiceProvider(IWindsorContainer container, MsLifetimeScopeProvider msLifetimeScopeProvider)
@@ -153,13 +154,21 @@ namespace Castle.Windsor.MsDependencyInjection
                 var itemServiceId = new KeyedServiceId(itemType, serviceId.Key);
                 var keys = _registry.ResolveAllWindsorKeysForService(itemServiceId);
 
+                // Use the existing Windsor lifetime metadata, including open-generic registrations.
+                // Caching a collection containing transients would turn them into scoped instances.
+                var cacheCollection = keys.All(key =>
+                    _container.Kernel.GetHandler(key).ComponentModel.LifestyleType != LifestyleType.Transient);
+
                 var result = ServiceResolveHelper.ResolveAllByName(_container, itemType, keys, track ? OwnMsLifetimeScope : null);
 
-                // Use locking to not corrupt the collection.
-                // It's okay if we resolve it multiple times in case of concurrency.
-                lock (_anyKeyCollectionCache)
+                if (cacheCollection)
                 {
-                    _anyKeyCollectionCache[serviceId] = result;
+                    // Use locking to not corrupt the collection.
+                    // It's okay if we resolve it multiple times in case of concurrency.
+                    lock (_anyKeyCollectionCache)
+                    {
+                        _anyKeyCollectionCache[serviceId] = result;
+                    }
                 }
 
                 return result;
