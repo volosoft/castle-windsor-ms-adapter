@@ -6,6 +6,7 @@ using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+using System.Linq;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Castle.Windsor.MsDependencyInjection.Keyed;
@@ -79,26 +80,34 @@ internal sealed class TypeKeyedMetadataRegistry
 
         static KeyedParameterInfo? InspectParameter(ParameterInfo parameter)
         {
-            var fromKeyed = parameter.GetCustomAttribute<FromKeyedServicesAttribute>();
-            if (fromKeyed != null)
+            KeyedParameterInfo? first = null;
+            KeyedParameterInfo? nonKeyed = null;
+            var supported = parameter.GetCustomAttributes<FromKeyedServicesAttribute>().Cast<Attribute>()
+                .Concat(parameter.GetCustomAttributes<ServiceKeyAttribute>()).ToDictionary(attribute => attribute.GetType());
+            foreach (var metadata in parameter.CustomAttributes)
             {
-                return new KeyedParameterInfo(
-                    KeyedParameterKind.FromKeyed,
-                    fromKeyed.LookupMode,
-                    fromKeyed.Key,
-                    parameter.ParameterType);
-            }
+                if (!supported.TryGetValue(metadata.AttributeType, out var attribute))
+                {
+                    continue;
+                }
 
-            if (parameter.IsDefined(typeof(ServiceKeyAttribute), inherit: true))
+                if (attribute is FromKeyedServicesAttribute fromKeyed)
+                {
+                    var info = new KeyedParameterInfo(KeyedParameterKind.FromKeyed,
+                        fromKeyed.LookupMode, fromKeyed.Key, parameter.ParameterType);
+                    first ??= info;
+                    nonKeyed ??= info;
+                }
+                else if (attribute is ServiceKeyAttribute)
+                {
+                    first ??= new KeyedParameterInfo(KeyedParameterKind.ServiceKey,
+                        ServiceKeyLookupMode.InheritKey, null, parameter.ParameterType);
+                }
+            }
+            return first == null ? null : first with
             {
-                return new KeyedParameterInfo(
-                    KeyedParameterKind.ServiceKey,
-                    ServiceKeyLookupMode.InheritKey,
-                    null,
-                    parameter.ParameterType);
-            }
-
-            return null;
+                NonKeyedFallback = nonKeyed
+            };
         }
     }
 

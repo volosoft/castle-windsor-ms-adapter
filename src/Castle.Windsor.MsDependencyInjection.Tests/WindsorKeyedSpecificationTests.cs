@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Castle.MicroKernel.Registration;
@@ -15,7 +16,13 @@ namespace Castle.Windsor.MsDependencyInjection.Tests
 {
     public class WindsorKeyedSpecificationTests : KeyedDependencyInjectionSpecificationTests, IDisposable
     {
-        public override bool SupportsIServiceProviderIsKeyedService => true;
+        public override bool SupportsIServiceProviderIsKeyedService
+        {
+            get
+            {
+                return true;
+            }
+        }
 
         protected override IServiceProvider CreateServiceProvider(IServiceCollection serviceCollection)
         {
@@ -37,8 +44,7 @@ namespace Castle.Windsor.MsDependencyInjection.Tests
 
         /// <summary>
         /// MS DI with <c>ValidateScopes = true</c> rejects resolving a scoped service directly from
-        /// the root provider and throws <see cref="InvalidOperationException"/>. The Windsor adapter
-        /// has no scope-validation equivalent and resolves it without throwing.
+        /// the root provider and throws <see cref="InvalidOperationException"/>.
         /// </summary>
         [Fact]
         public void Keyed_Scoped_At_Root_ValidateScopes()
@@ -52,14 +58,13 @@ namespace Castle.Windsor.MsDependencyInjection.Tests
                 Should.Throw<InvalidOperationException>(() => ms.GetKeyedService<IKeyedFake>("k"));
             }
 
-            // Windsor: no scope validation — resolves at the root without throwing.
             var windsorServices = new ServiceCollection();
             windsorServices.AddSingleton(new DisposeTracker());
             windsorServices.AddKeyedScoped<IKeyedFake, KeyedFakeA>("k");
-            var windsor = WindsorRegistrationHelper.CreateServiceProvider(new WindsorContainer(), windsorServices);
+            var windsor = WindsorRegistrationHelper.CreateServiceProvider(new WindsorContainer(), windsorServices, validateScopes: true);
             try
             {
-                windsor.GetKeyedService<IKeyedFake>("k").ShouldNotBeNull();
+                Should.Throw<InvalidOperationException>(() => windsor.GetKeyedService<IKeyedFake>("k"));
             }
             finally
             {
@@ -69,9 +74,7 @@ namespace Castle.Windsor.MsDependencyInjection.Tests
 
         /// <summary>
         /// MS DI prefers <see cref="IAsyncDisposable.DisposeAsync"/> over <see cref="IDisposable.Dispose"/>
-        /// when an instance implements both, and the sync path is NOT taken. The Windsor adapter does
-        /// not dispatch async disposal to tracked instances — the sync <see cref="IDisposable.Dispose"/>
-        /// path is taken instead.
+        /// when an instance implements both, and the sync path is NOT taken.
         /// </summary>
         [Fact]
         public async Task AsyncDisposable_Keyed_Singleton_Dispose_Preference()
@@ -86,23 +89,15 @@ namespace Castle.Windsor.MsDependencyInjection.Tests
             msInstance.DisposedAsync.ShouldBeTrue();
             msInstance.DisposedSync.ShouldBeFalse();
 
-            // Windsor: only the synchronous Dispose runs, regardless of whether the provider is
-            // disposed sync or async.
             var windsorServices = new ServiceCollection();
             windsorServices.AddSingleton(new DisposeTracker());
             windsorServices.AddKeyedSingleton<IKeyedFake, KeyedFakeAsync>("k");
             var windsor = WindsorRegistrationHelper.CreateServiceProvider(new WindsorContainer(), windsorServices);
             var windsorInstance = (KeyedFakeAsync)windsor.GetKeyedService<IKeyedFake>("k");
-            if (windsor is IAsyncDisposable asyncWindsor)
-            {
-                await asyncWindsor.DisposeAsync();
-            }
-            else
-            {
-                ((IDisposable)windsor).Dispose();
-            }
-            windsorInstance.DisposedSync.ShouldBeTrue();
-            windsorInstance.DisposedAsync.ShouldBeFalse();
+            var asyncWindsor = Assert.IsAssignableFrom<IAsyncDisposable>(windsor);
+            await asyncWindsor.DisposeAsync();
+            windsorInstance.DisposedSync.ShouldBeFalse();
+            windsorInstance.DisposedAsync.ShouldBeTrue();
         }
 
         [Fact]
@@ -154,7 +149,7 @@ namespace Castle.Windsor.MsDependencyInjection.Tests
 
             // The AnyKey template must expand to exactly one Windsor component for key "k".
             var windsorContainer = sp.GetService<IWindsorContainer>();
-            windsorContainer.Kernel.GetHandlers(typeof(IKeyedFake)).Length.ShouldBe(1);
+            windsorContainer.Kernel.GetHandlers().Count(handler => handler.ComponentModel.Services.Contains(typeof(IKeyedFake))).ShouldBe(1);
             (sp as IDisposable)?.Dispose();
         }
 
@@ -179,11 +174,11 @@ namespace Castle.Windsor.MsDependencyInjection.Tests
             errors.ShouldBeEmpty();
 
             var windsorContainer = sp.GetService<IWindsorContainer>();
-            windsorContainer.Kernel.GetHandlers(typeof(IKeyedFake)).Length.ShouldBe(50);
+            windsorContainer.Kernel.GetHandlers().Count(handler => handler.ComponentModel.Services.Contains(typeof(IKeyedFake))).ShouldBe(50);
 
             // Re-resolving an already-expanded key reuses the same component (no new handler).
             sp.GetKeyedService<IKeyedFake>("k0").ShouldNotBeNull();
-            windsorContainer.Kernel.GetHandlers(typeof(IKeyedFake)).Length.ShouldBe(50);
+            windsorContainer.Kernel.GetHandlers().Count(handler => handler.ComponentModel.Services.Contains(typeof(IKeyedFake))).ShouldBe(50);
             (sp as IDisposable)?.Dispose();
         }
 
@@ -270,8 +265,14 @@ namespace Castle.Windsor.MsDependencyInjection.Tests
 
             var workload = Task.Run(() => Parallel.For(0, 200, i =>
             {
-                try { sp.GetKeyedService<IKeyedFake>("k" + i).ShouldNotBeNull(); }
-                catch (Exception ex) { workloadErrors.Add(ex); }
+                try
+                {
+                    sp.GetKeyedService<IKeyedFake>("k" + i).ShouldNotBeNull();
+                }
+                catch (Exception ex)
+                {
+                    workloadErrors.Add(ex);
+                }
             }));
 
             // 30s is well beyond the work; if we hit it we're deadlocked.

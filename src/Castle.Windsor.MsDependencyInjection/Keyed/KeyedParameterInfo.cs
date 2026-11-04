@@ -9,4 +9,9 @@ internal record KeyedParameterInfo(
     KeyedParameterKind Kind,
     ServiceKeyLookupMode LookupMode,
     object? Key,
-    Type ParameterType);
+    Type ParameterType,
+    KeyedParameterInfo? NonKeyedFallback = null)
+{
+    public KeyedParameterInfo? ForComponent(bool keyed) =>
+        Kind == KeyedParameterKind.ServiceKey && !keyed ? NonKeyedFallback : this;
+}

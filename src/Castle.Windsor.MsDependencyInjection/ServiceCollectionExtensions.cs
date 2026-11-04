@@ -9,7 +9,7 @@ namespace Castle.Windsor.MsDependencyInjection
         public static T GetSingletonServiceOrNull<T>(this IServiceCollection services)
         {
             return (T)services
-                .FirstOrDefault(d => d.ServiceType == typeof(T))
+                .FirstOrDefault(d => !d.IsKeyedService && d.ServiceType == typeof(T))
                 ?.ImplementationInstance;
         }
 

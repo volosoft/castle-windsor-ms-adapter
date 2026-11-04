@@ -1,0 +1,42 @@
+name: Tests
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    env:
+      TEST_PROJECT: src/Castle.Windsor.MsDependencyInjection.Tests/Castle.Windsor.MsDependencyInjection.Tests.csproj
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore "${{ env.TEST_PROJECT }}"
+
+      - name: Test
+        run: dotnet test "${{ env.TEST_PROJECT }}" --configuration Release --no-restore --logger "trx;LogFileName=tests.trx" --results-directory TestResults --blame-hang-timeout 2m
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.os }}
+          path: TestResults/**
+          if-no-files-found: warn

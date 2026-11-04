@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Threading.Tasks;
 using Castle.Windsor.MsDependencyInjection.Tests.Parity.Fakes;
 using Castle.Windsor.MsDependencyInjection.Tests.Parity.Infrastructure;
@@ -54,6 +55,22 @@ namespace Castle.Windsor.MsDependencyInjection.Tests.Parity.Keyed
                     ctx.Provider.GetKeyedService<IKeyedFake>("k"),
                     ctx.Provider.GetKeyedService<IKeyedFake>("k"),
                     ctx.Provider.GetKeyedService<IKeyedFake>("k")));
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void Keyed_Transient_Collection_Always_New(bool useAnyKey)
+        {
+            ParityRunner.RunAssertParity(
+                services => services.AddKeyedTransient<IKeyedFake, KeyedFakeA>("k"),
+                ctx => ctx.InScope(sp =>
+                {
+                    var key = useAnyKey ? KeyedService.AnyKey : "k";
+                    var first = sp.GetKeyedServices<IKeyedFake>(key).Single();
+                    var second = sp.GetKeyedServices<IKeyedFake>(key).Single();
+                    second.ShouldNotBeSameAs(first);
+                }));
         }
 
         [Fact]
