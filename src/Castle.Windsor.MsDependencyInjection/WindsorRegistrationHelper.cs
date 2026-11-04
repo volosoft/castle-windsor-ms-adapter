@@ -1,5 +1,9 @@
 using System;
+using Castle.Core;
+using Castle.MicroKernel;
+using Castle.MicroKernel.SubSystems.Naming;
 using Castle.MicroKernel.Registration;
+using System.Linq;
 using Castle.MicroKernel.SubSystems.Configuration;
 using Castle.Windsor.MsDependencyInjection.Keyed;
 using Microsoft.Extensions.DependencyInjection;
@@ -9,16 +13,26 @@ namespace Castle.Windsor.MsDependencyInjection
 {
     public static class WindsorRegistrationHelper
     {
+        internal const string ServiceTypeProperty = "MsServiceType";
+        internal const string InfrastructureProperty = "MsInfrastructure";
+        internal static bool RequiresBoxing(Type type) => type.IsValueType || type == typeof(string);
+        private static bool HasLocalComponent(IWindsorContainer container, Type type)
+            => ((INamingSubSystem)container.Kernel.GetSubSystem(SubSystemConstants.NamingKey)).Contains(type);
         /// <summary>
         /// Adds all given services from <see cref="Microsoft.Extensions.DependencyInjection"/>
         /// to the Castle Windsor container.
         /// </summary>
         /// <returns>A Castle Windsor service provider.</returns>
         public static IServiceProvider CreateServiceProvider(IWindsorContainer container, IServiceCollection services)
-        {
-            AddServices(container, services);
+            => CreateServiceProvider(container, services, validateScopes: false);
 
-            using (MsLifetimeScope.Using(container.Resolve<GlobalMsLifetimeScope>()))
+        public static IServiceProvider CreateServiceProvider(IWindsorContainer container, IServiceCollection services, bool validateScopes)
+        {
+            using var origin = WindsorServiceScopeFactory.UsingFactoryRoot(null);
+            AddServices(container, services);
+            var root = container.Resolve<GlobalMsLifetimeScope>();
+            root.ValidateScopes = validateScopes;
+            using (MsLifetimeScope.Using(root))
             {
                 return container.Resolve<GlobalScopedWindsorServiceProvider>();
             }
@@ -41,7 +55,15 @@ namespace Castle.Windsor.MsDependencyInjection
 
         private static void AddBaseServices(IWindsorContainer container)
         {
-            if (!container.Kernel.HasComponent(typeof(IWindsorContainer)))
+            if (!HasLocalComponent(container, typeof(MsScopeState)))
+                container.Register(Component.For<MsScopeState>().LifestyleScoped<MsScopedAccesor>());
+            if (!HasLocalComponent(container, typeof(NativeDecommissionScheduler)))
+                container.Register(Component.For<NativeDecommissionScheduler>().Instance(new NativeDecommissionScheduler(container.Kernel)));
+            if (!HasLocalComponent(container, typeof(ScopedResolution)))
+                container.Register(Component.For<ScopedResolution>()
+                    .UsingFactoryMethod((_, _, context) => new ScopedResolution((Func<object>)context.AdditionalArguments["resolve"]), managedExternally: true)
+                    .LifestyleTransient());
+            if (!HasLocalComponent(container, typeof(IWindsorContainer)))
             {
                 container.Register(
                     Component.For<IWindsorContainer>()
@@ -50,7 +72,7 @@ namespace Castle.Windsor.MsDependencyInjection
                 );
             }
 
-            if (!container.Kernel.HasComponent(typeof(KeyedServiceRegistry)))
+            if (!HasLocalComponent(container, typeof(KeyedServiceRegistry)))
             {
                 container.Register(
                     Component.For<KeyedServiceRegistry>()
@@ -58,7 +80,7 @@ namespace Castle.Windsor.MsDependencyInjection
                 );
             }
 
-            if (!container.Kernel.HasComponent(typeof(TypeKeyedMetadataRegistry)))
+            if (!HasLocalComponent(container, typeof(TypeKeyedMetadataRegistry)))
             {
                 container.Register(
                     Component.For<TypeKeyedMetadataRegistry>()
@@ -66,7 +88,7 @@ namespace Castle.Windsor.MsDependencyInjection
                 );
             }
 
-            if (!container.Kernel.HasComponent(typeof(GlobalMsLifetimeScope)))
+            if (!HasLocalComponent(container, typeof(GlobalMsLifetimeScope)))
             {
                 container.Register(
                     Component.For<GlobalMsLifetimeScope>()
@@ -74,34 +96,39 @@ namespace Castle.Windsor.MsDependencyInjection
                 );
             }
 
-            if (!container.Kernel.HasComponent(typeof(MsLifetimeScopeProvider)))
+            if (!HasLocalComponent(container, typeof(MsLifetimeScopeProvider)))
             {
                 container.Register(
                     Component.For<MsLifetimeScopeProvider>()
+                        .UsingFactoryMethod((kernel, context) => new MsLifetimeScopeProvider(MsLifetimeScopeProvider.SelectScope(kernel, context)))
                         .LifestyleTransient()
                 );
             }
 
-            if (!container.Kernel.HasComponent(typeof(IServiceScopeFactory)))
+            if (!container.Kernel.HasComponent(typeof(IServiceScopeFactory)) || !HasLocalComponent(container, typeof(IServiceScopeFactory)) &&
+                container.Kernel.GetHandler(typeof(IServiceScopeFactory)).ComponentModel.Implementation == typeof(WindsorServiceScopeFactory))
             {
                 container.Register(
                     Component.For<IServiceScopeFactory>()
                         .ImplementedBy<WindsorServiceScopeFactory>()
+                        .AddDescriptor(new ScopeFactoryEntryResolution(container))
                         .LifestyleSingleton()
                 );
             }
 
-            if (!container.Kernel.HasComponent(typeof(IServiceProvider)))
+            if (!container.Kernel.HasComponent(typeof(IServiceProvider)) || !HasLocalComponent(container, typeof(IServiceProvider)) &&
+                container.Kernel.GetHandler(typeof(IServiceProvider)).ComponentModel.ExtendedProperties[InfrastructureProperty] is true)
             {
                 container.Register(
                     Component.For<IServiceProvider, IServiceProviderIsService, IKeyedServiceProvider, IServiceProviderIsKeyedService>()
                         .Forward<ScopedWindsorServiceProvider>()
                         .ImplementedBy<ScopedWindsorServiceProvider>()
+                        .ExtendedProperties(Property.ForKey(InfrastructureProperty).Eq(true))
                         .LifestyleTransient()
                 );
             }
 
-            if (!container.Kernel.HasComponent(typeof(GlobalScopedWindsorServiceProvider)))
+            if (!HasLocalComponent(container, typeof(GlobalScopedWindsorServiceProvider)))
             {
                 container.Register(
                     Component.For<GlobalScopedWindsorServiceProvider>()
@@ -112,6 +139,14 @@ namespace Castle.Windsor.MsDependencyInjection
 
         private static void AddSubResolvers(IWindsorContainer container)
         {
+            if (container.Kernel.GetSubSystem(SubSystemConstants.NamingKey) is KeyedServicesNamingSubSystem) return;
+            var naming = (INamingSubSystem)container.Kernel.GetSubSystem(SubSystemConstants.NamingKey);
+            container.Kernel.AddSubSystem(SubSystemConstants.NamingKey,
+                new KeyedServicesNamingSubSystem(naming, container.Resolve<KeyedServiceRegistry>()));
+            var constructorDependencies = new KeyedConstructorDependencyContributor(
+                container.Resolve<TypeKeyedMetadataRegistry>(), container.Resolve<KeyedServiceRegistry>());
+            container.Kernel.ComponentModelBuilder.AddContributor(constructorDependencies);
+            foreach (var handler in naming.GetAllHandlers()) constructorDependencies.ProcessModel(container.Kernel, handler.ComponentModel);
             // [FromKeyedServices] / [ServiceKey] constructor parameter injection.
             // Has to be the first one, so it handles keyed collections.
             // The sub-resolver takes the container directly: routing through ScopedWindsorServiceProvider
@@ -160,7 +195,7 @@ namespace Castle.Windsor.MsDependencyInjection
                     {
                         keyedServiceRegistry.RegisterAnyKeyService(
                             keyedServiceId,
-                            doRegisterExpansion: (windsorKey, serviceKey) => RegisterKeyedServiceDescriptor(container, serviceDescriptor, windsorKey, serviceKey));
+                            registerExpansion: (windsorKey, serviceKey) => RegisterKeyedServiceDescriptor(container, serviceDescriptor, windsorKey, serviceKey));
                     }
                 }
             }
@@ -171,7 +206,11 @@ namespace Castle.Windsor.MsDependencyInjection
             // MS allows the same type to be registered multiple times.
             // Castle Windsor throws an exception in that case - it requires an unique name.
             // For that reason, we use Guids to ensure uniqueness.
-            string uniqueName = serviceDescriptor.ServiceType.FullName + "_" + Guid.NewGuid();
+            var serviceType = serviceDescriptor.ServiceType;
+            var registrationType = RequiresBoxing(serviceType) ? typeof(object) : serviceType;
+            string uniqueName = RequiresBoxing(serviceType)
+                ? container.Resolve<KeyedServiceRegistry>().RegisterExplicitKeyService(new KeyedServiceId(serviceType, null))
+                : serviceType.FullName + "_" + Guid.NewGuid();
 
             // The IsDefault() calls are important because this makes sure that the last service
             // is returned in case of multiple registrations. This is by design in the MS library:
@@ -180,77 +219,88 @@ namespace Castle.Windsor.MsDependencyInjection
             if (serviceDescriptor.ImplementationType != null)
             {
                 container.Register(
-                    Component.For(serviceDescriptor.ServiceType)
+                    Component.For(registrationType)
                         .Named(uniqueName)
                         .IsDefault()
                         .ImplementedBy(serviceDescriptor.ImplementationType)
-                        .ConfigureLifecycle(serviceDescriptor.Lifetime));
+                        .ConfigureActivator(serviceDescriptor.ImplementationType)
+                        .ConfigureLifecycle(serviceDescriptor.Lifetime, serviceType));
             }
             else if (serviceDescriptor.ImplementationFactory != null)
             {
                 var serviceDescriptorRef = serviceDescriptor;
                 container.Register(
-                    Component.For(serviceDescriptor.ServiceType)
+                    Component.For(registrationType)
                         .Named(uniqueName)
                         .IsDefault()
                         .UsingFactoryMethod(c => serviceDescriptorRef.ImplementationFactory(c.Resolve<IServiceProvider>()))
-                        .ConfigureLifecycle(serviceDescriptor.Lifetime)
+                        .ConfigureLifecycle(serviceDescriptor.Lifetime, serviceType, factory: true)
                     );
             }
             else
             {
                 container.Register(
-                    Component.For(serviceDescriptor.ServiceType)
+                    Component.For(registrationType)
                         .Named(uniqueName)
                         .IsDefault()
                         .Instance(serviceDescriptor.ImplementationInstance)
-                        .ConfigureLifecycle(serviceDescriptor.Lifetime)
+                        .ConfigureLifecycle(serviceDescriptor.Lifetime, serviceType, owned: false)
                     );
             }
         }
 
         private static void RegisterKeyedServiceDescriptor(IWindsorContainer container, ServiceDescriptor serviceDescriptor, string windsorKey, object serviceKey)
         {
+            var serviceType = serviceDescriptor.ServiceType;
+            var registrationType = RequiresBoxing(serviceType) ? typeof(object) : serviceType;
             if (serviceDescriptor.KeyedImplementationType != null)
             {
                 container.Register(
-                    Component.For(serviceDescriptor.ServiceType)
+                    Component.For(registrationType)
                         .Named(windsorKey)
                         .ImplementedBy(serviceDescriptor.KeyedImplementationType)
-                        .ConfigureLifecycle(serviceDescriptor.Lifetime));
+                        .ConfigureActivator(serviceDescriptor.KeyedImplementationType)
+                        .ConfigureLifecycle(serviceDescriptor.Lifetime, serviceType));
             }
             else if (serviceDescriptor.KeyedImplementationFactory != null)
             {
                 container.Register(
-                    Component.For(serviceDescriptor.ServiceType)
+                    Component.For(registrationType)
                         .Named(windsorKey)
-                        .UsingFactoryMethod(c => serviceDescriptor.KeyedImplementationFactory!(c.Resolve<IServiceProvider>(), serviceKey))
-                        .ConfigureLifecycle(serviceDescriptor.Lifetime)
+                        .UsingFactoryMethod((c, context) => serviceDescriptor.KeyedImplementationFactory!(c.Resolve<IServiceProvider>(),
+                            c.Resolve<KeyedServiceRegistry>().TryGetLookupKey(context, windsorKey, out var lookupKey) ? lookupKey : serviceKey))
+                        .ConfigureLifecycle(serviceDescriptor.Lifetime, serviceType, factory: true)
                     );
             }
             else
             {
                 container.Register(
-                    Component.For(serviceDescriptor.ServiceType)
+                    Component.For(registrationType)
                         .Named(windsorKey)
                         .Instance(serviceDescriptor.KeyedImplementationInstance)
-                        .ConfigureLifecycle(serviceDescriptor.Lifetime)
+                        .ConfigureLifecycle(serviceDescriptor.Lifetime, serviceType, owned: false)
                     );
             }
         }
 
-        private static ComponentRegistration<object> ConfigureLifecycle(this ComponentRegistration<object> registrationBuilder, ServiceLifetime serviceLifetime)
+        private static ComponentRegistration<object> ConfigureActivator(this ComponentRegistration<object> registration, Type implementation)
+            => implementation.IsValueType ? registration.Activator<MsValueTypeActivator>() : registration;
+
+        private static ComponentRegistration<object> ConfigureLifecycle(this ComponentRegistration<object> registrationBuilder, ServiceLifetime serviceLifetime, Type serviceType, bool factory = false, bool owned = true)
         {
+            registrationBuilder.ExtendedProperties(Property.ForKey(ServiceTypeProperty).Eq(serviceType));
+            if (owned) registrationBuilder.AddDescriptor(new MsOwnedLifecycleContributor(factory));
             switch (serviceLifetime)
             {
                 case ServiceLifetime.Transient:
-                    registrationBuilder.LifestyleTransient();
+                    if (factory) registrationBuilder.LifestyleCustom<MsFactoryTransientLifestyleManager>();
+                    else registrationBuilder.LifestyleTransient();
                     break;
                 case ServiceLifetime.Scoped:
                     registrationBuilder.LifestyleCustom<MsScopedLifestyleManager>();
                     break;
                 case ServiceLifetime.Singleton:
-                    registrationBuilder.LifestyleSingleton();
+                    registrationBuilder.LifestyleCustom<MsSingletonLifestyleManager>();
                     break;
                 default:
                     throw new NotImplementedException("Unknown ServiceLifetime: " + serviceLifetime);

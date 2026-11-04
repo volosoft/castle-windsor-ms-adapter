@@ -69,6 +69,22 @@ The `KeyedService.AnyKey` registration moniker is supported as well — a servic
 
 > **Note:** This release targets the .NET 10 keyed-services specification. Because of [breaking changes in .NET 10](https://learn.microsoft.com/en-us/dotnet/core/compatibility/extensions/10.0/getkeyedservice-anykey) around `KeyedService.AnyKey`, the adapter implements the latest spec only.
 
+## Lifetimes and disposal
+
+Both `WindsorRegistrationHelper.CreateServiceProvider` and `WindsorServiceProviderFactory` create a disposable root provider. Dispose the root provider, or the host that owns it, to release the container. Dispose child scopes when their work completes. With the default configuration, scopes from the factory root retain ownership of their `IServiceCollection` registrations until the scopes close; the static helper retains its cascading parent lifetime. Native Windsor registrations retain Windsor's release policy and container lifetime.
+
+Release `IServiceCollection` instances resolved from factory scopes by disposing their scope. `IWindsorContainer.Release` does not release those instances.
+
+Native Windsor registrations, interceptors, and named dependencies remain available. Microsoft DI factory registrations may return null; required-service lookups reject a null result.
+
+Use `CreateAsyncScope()` and `DisposeAsync()` when services implement `IAsyncDisposable`. For services registered through `IServiceCollection`, asynchronous disposal prefers `DisposeAsync()` when both disposal interfaces are implemented. Synchronous disposal rejects asynchronous-only services.
+
+DisposeAsync can use a dedicated thread to preserve Windsor disposal order, including scopes with asynchronous services or factory registrations. Allow for this thread cost when many scopes close concurrently.
+
+Scope validation is disabled by default. Enable it with `new WindsorServiceProviderFactory(validateScopes: true)` or `WindsorRegistrationHelper.CreateServiceProvider(container, services, validateScopes: true)` to reject scoped services resolved from the root or captured by a singleton.
+
+The validation setting belongs to the shared Windsor container. Creating another provider for that container reapplies the setting, including the default `false`.
+
 ## License
 [MIT](https://github.com/volosoft/castle-windsor-ms-adapter/blob/master/LICENSE)
 

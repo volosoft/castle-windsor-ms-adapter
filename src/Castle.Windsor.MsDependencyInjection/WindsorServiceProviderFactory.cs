@@ -5,6 +5,9 @@ namespace Castle.Windsor.MsDependencyInjection
 {
     public class WindsorServiceProviderFactory : IServiceProviderFactory<IWindsorContainer>
     {
+        private readonly bool _validateScopes;
+        public WindsorServiceProviderFactory() : this(false) { }
+        public WindsorServiceProviderFactory(bool validateScopes) => _validateScopes = validateScopes;
         public IWindsorContainer CreateBuilder(IServiceCollection services)
         {
             var container = services.GetSingletonServiceOrNull<IWindsorContainer>();
@@ -22,7 +25,15 @@ namespace Castle.Windsor.MsDependencyInjection
 
         public IServiceProvider CreateServiceProvider(IWindsorContainer containerBuilder)
         {
-            return containerBuilder.Resolve<IServiceProvider>();
+            using var origin = WindsorServiceScopeFactory.UsingFactoryRoot(containerBuilder);
+            var root = containerBuilder.Resolve<GlobalMsLifetimeScope>();
+            root.ValidateScopes = _validateScopes;
+            using (MsLifetimeScope.Using(root))
+            {
+                return containerBuilder.Kernel.GetHandler(typeof(IServiceProvider)).ComponentModel.Implementation == typeof(ScopedWindsorServiceProvider)
+                    ? containerBuilder.Resolve<GlobalScopedWindsorServiceProvider>()
+                    : containerBuilder.Resolve<IServiceProvider>();
+            }
         }
     }
 }

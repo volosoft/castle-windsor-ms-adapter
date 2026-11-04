@@ -125,7 +125,7 @@ public static class ParityRunner
             {
                 // WindsorContainer / WindsorRegistrationHelper resolve via ancestor namespaces,
                 // exactly as in the existing WindsorSpecificationTests.
-                provider = WindsorRegistrationHelper.CreateServiceProvider(new WindsorContainer(), services);
+                provider = WindsorRegistrationHelper.CreateServiceProvider(new WindsorContainer(), services, validateScopes);
             }
 
             return (new ParityContext(provider, tracker), null);

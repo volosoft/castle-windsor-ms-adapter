@@ -6,6 +6,7 @@ using System.Linq;
 using Castle.Core;
 using Castle.MicroKernel;
 using Castle.MicroKernel.Context;
+using Castle.MicroKernel.Handlers;
 using Castle.MicroKernel.Resolvers;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -23,6 +24,9 @@ namespace Castle.Windsor.MsDependencyInjection.Keyed;
 /// </summary>
 internal sealed class KeyedServicesSubResolver : ISubDependencyResolver
 {
+    [ThreadStatic]
+    private static (CreationContext? Context, DependencyModel? Dependency) _probing;
+
     private readonly TypeKeyedMetadataRegistry _typeMetadataRegistry;
     private readonly KeyedServiceRegistry _keyedRegistry;
     private readonly IWindsorContainer _container;
@@ -39,9 +43,22 @@ internal sealed class KeyedServicesSubResolver : ISubDependencyResolver
 
     public bool CanResolve(CreationContext context, ISubDependencyResolver contextHandlerResolver, ComponentModel model, DependencyModel dependency)
     {
-        if (!TryGetKeyedParameter(dependency, out var parameterInfo))
+        if (!TryGetKeyedParameter(model, dependency, out var parameterInfo))
         {
-            return false;
+            if (ReferenceEquals(_probing.Context, context) && ReferenceEquals(_probing.Dependency, dependency)) return false;
+            var registration = FindRegistration(context, dependency);
+            if (registration == null) return false;
+            if (!WindsorRegistrationHelper.RequiresBoxing(dependency.TargetItemType))
+            {
+                // A registered factory may supply null through Windsor's normal fallback.
+                if (registration.ComponentModel.ExtendedProperties[NullFactoryResult.FactoryMarker] is true)
+                    dependency.IsOptional = true;
+                return false;
+            }
+            var previous = _probing;
+            _probing = (context, dependency);
+            try { return !_container.Kernel.Resolver.CanResolve(context, contextHandlerResolver, model, dependency); }
+            finally { _probing = previous; }
         }
 
         // A [ServiceKey] parameter can only be filled when the enclosing component was
@@ -54,19 +71,32 @@ internal sealed class KeyedServicesSubResolver : ISubDependencyResolver
             return false;
         }
 
-        return true;
+        if (parameterInfo.Kind == KeyedParameterKind.ServiceKey) return true;
+        if (dependency.HasDefaultValue || ServiceResolveHelper.IsEnumerable(parameterInfo.ParameterType)) return true;
+
+        var available = parameterInfo.LookupMode == ServiceKeyLookupMode.NullKey
+            ? _container.Kernel.HasComponent(parameterInfo.ParameterType)
+            : parameterInfo.LookupMode == ServiceKeyLookupMode.InheritKey
+                ? _keyedRegistry.TryGetLookupKey(context, model.Name, out var key)
+                    ? _keyedRegistry.HasExplicitOrAnyKey(new KeyedServiceId(parameterInfo.ParameterType, key))
+                    : _container.Kernel.HasComponent(parameterInfo.ParameterType)
+                : _keyedRegistry.HasExplicitOrAnyKey(new KeyedServiceId(parameterInfo.ParameterType, parameterInfo.Key));
+        return available || model.Constructors.Count == 1;
     }
 
     public object Resolve(CreationContext context, ISubDependencyResolver contextHandlerResolver, ComponentModel model, DependencyModel dependency)
     {
-        if (!TryGetKeyedParameter(dependency, out var parameterInfo))
+        if (!TryGetKeyedParameter(model, dependency, out var parameterInfo))
         {
+            var factory = FindRegistration(context, dependency);
+            if (factory != null)
+                return NullFactoryResult.Unwrap(ServiceResolveHelper.ResolveInContext(_container.Kernel, factory, dependency.TargetItemType, context))!;
             throw new DependencyResolverException($"Parameter '{dependency.DependencyKey}' of '{model.Implementation}' is not a keyed-services parameter.");
         }
 
         return parameterInfo.Kind switch
         {
-            KeyedParameterKind.ServiceKey => ResolveServiceKey(model, dependency, parameterInfo),
+            KeyedParameterKind.ServiceKey => ResolveServiceKey(context, model, dependency, parameterInfo),
             KeyedParameterKind.FromKeyed => ResolveFromKeyed(context, model, dependency, parameterInfo),
             _ => throw new ArgumentOutOfRangeException()
         };
@@ -87,19 +117,20 @@ internal sealed class KeyedServicesSubResolver : ISubDependencyResolver
             // Parameterless [FromKeyedServices]: resolve with the key the enclosing
             // component was itself resolved with; non-keyed enclosing -> non-keyed injection.
             case ServiceKeyLookupMode.InheritKey:
-                resolved = _keyedRegistry.TryGetServiceKeyByWindsorName(model.Name, out var inheritedKey)
-                    ? TryResolveKeyed(parameterType, inheritedKey)
+                resolved = _keyedRegistry.TryGetLookupKey(context, model.Name, out var inheritedKey)
+                    ? TryResolveKeyed(context, parameterType, inheritedKey)
                     : TryResolveNonKeyed(context, parameterType);
                 break;
 
             case ServiceKeyLookupMode.ExplicitKey:
-                resolved = TryResolveKeyed(parameterType, parameterInfo.Key);
+                resolved = TryResolveKeyed(context, parameterType, parameterInfo.Key);
                 break;
 
             default:
                 throw new ArgumentOutOfRangeException();
         }
 
+        if (resolved is NullFactoryResult) return null!;
         if (resolved is not null)
         {
             return resolved;
@@ -113,42 +144,50 @@ internal sealed class KeyedServicesSubResolver : ISubDependencyResolver
         throw new InvalidOperationException($"No service for type '{parameterInfo.ParameterType}' has been registered with key '{parameterInfo.Key}'.");
     }
 
-    private object? TryResolveKeyed(Type type, object? key)
+    private object? TryResolveKeyed(CreationContext context, Type type, object? key)
     {
+        var name = _keyedRegistry.TryResolveWindsorKeyForService(new KeyedServiceId(type, key));
+        if (name != null)
+            return ServiceResolveHelper.ResolveKeyedByName(_container, name, new KeyedServiceId(type, key), trackingScope: null, context);
+
         if (ServiceResolveHelper.IsEnumerable(type))
         {
             var itemType = type.GenericTypeArguments[0];
             var names = _keyedRegistry.ResolveAllWindsorKeysForService(new KeyedServiceId(itemType, key));
-            return ServiceResolveHelper.ResolveAllByName(_container, itemType, names, trackingScope: null);
+            return ServiceResolveHelper.ResolveAllByName(_container, itemType, names, trackingScope: null, context, _keyedRegistry, key);
         }
+        return null;
+    }
 
-        var name = _keyedRegistry.TryResolveWindsorKeyForService(new KeyedServiceId(type, key));
-        return name != null 
-            ? ServiceResolveHelper.ResolveByName(_container, name, type, trackingScope: null) 
-            : null;
+    private IHandler? FindRegistration(CreationContext context, DependencyModel dependency)
+    {
+        if (dependency.Parameter != null || dependency.TargetItemType == null) return null;
+        var valueName = _keyedRegistry.FindUnkeyedValue(dependency.TargetItemType);
+        if (valueName != null) return _container.Kernel.GetHandler(valueName);
+        var handler = _container.Kernel.GetHandler(dependency.TargetItemType);
+        return handler?.ComponentModel.ExtendedProperties[WindsorRegistrationHelper.ServiceTypeProperty] is Type && !handler.IsBeingResolvedInContext(context) ? handler : null;
     }
 
     private object? TryResolveNonKeyed(CreationContext context, Type type)
     {
+        var valueName = _keyedRegistry.FindUnkeyedValue(type);
+        if (valueName != null)
+            return ServiceResolveHelper.ResolveInContext(_container.Kernel, _container.Kernel.GetHandler(valueName), type, context);
+        if (_container.Kernel.HasComponent(type))
+            return ServiceResolveHelper.ResolveInContext(_container.Kernel, _container.Kernel.GetHandler(type), type, context);
+
         if (ServiceResolveHelper.IsEnumerable(type))
         {
-            // Shared with MsCompatibleCollectionResolver; null means defer so EmptyCollectionResolving fires.
             var itemType = type.GenericTypeArguments[0];
-            var array = ServiceResolveHelper.ResolveNonKeyedCollectionInContext(_container.Kernel, _keyedRegistry, itemType, context);
+            var array = ServiceResolveHelper.ResolveNonKeyedCollectionInContext(_container.Kernel, itemType, context);
             return array ?? _container.Kernel.ResolveAll(itemType, context.AdditionalArguments);
         }
-
-        if (ServiceResolveHelper.HasNonKeyedComponent(_container, _keyedRegistry, type))
-        {
-            return ServiceResolveHelper.Resolve(_container, type, trackingScope: null);
-        }
-        
         return null;
     }
 
-    private object ResolveServiceKey(ComponentModel model, DependencyModel dependency, KeyedParameterInfo parameter)
+    private object ResolveServiceKey(CreationContext context, ComponentModel model, DependencyModel dependency, KeyedParameterInfo parameter)
     {
-        if (!_keyedRegistry.TryGetServiceKeyByWindsorName(model.Name, out var key))
+        if (!_keyedRegistry.TryGetLookupKey(context, model.Name, out var key))
         {
             throw new InvalidOperationException(
                 $"[ServiceKey] parameter '{dependency.DependencyKey}' of '{model.Implementation}' " +
@@ -164,20 +203,15 @@ internal sealed class KeyedServicesSubResolver : ISubDependencyResolver
 
         return key;
 
-        static bool IsAssignableKey(object? key, Type parameterType)
-        {
-            if (key == null)
-            {
-                return !parameterType.IsValueType || Nullable.GetUnderlyingType(parameterType) != null;
-            }
-
-            return parameterType.IsInstanceOfType(key);
-        }
+        static bool IsAssignableKey(object? key, Type parameterType) =>
+            parameterType == typeof(object) || key != null && parameterType == key.GetType();
     }
 
-    private bool TryGetKeyedParameter(DependencyModel dependency, [NotNullWhen(true)] out KeyedParameterInfo? parameterInfo)
+    private bool TryGetKeyedParameter(ComponentModel model, DependencyModel dependency, [NotNullWhen(true)] out KeyedParameterInfo? parameterInfo)
     {
         parameterInfo = null;
+        if (dependency.Parameter != null && dependency.Parameter.Value != KeyedConstructorDependencyContributor.Reference)
+            return false;
 
         if (dependency is not ConstructorDependencyModel ctorDependency)
         {
@@ -202,6 +236,8 @@ internal sealed class KeyedServicesSubResolver : ISubDependencyResolver
             return false;
         }
 
-        return _typeMetadataRegistry.TryGet(declaringType, matchedParameter, out parameterInfo);
+        if (!_typeMetadataRegistry.TryGet(declaringType, matchedParameter, out var info)) return false;
+        parameterInfo = info?.ForComponent(_keyedRegistry.IsKeyedService(model.Name));
+        return parameterInfo != null;
     }
 }
