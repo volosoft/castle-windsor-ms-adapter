@@ -2,13 +2,22 @@ using System;
 using System.Threading;
 using Castle.Core;
 
-namespace Castle.Windsor.MsDependencyInjection;
-
-internal sealed class RootLifetime(Action release) : IDisposable
+namespace Castle.Windsor.MsDependencyInjection
 {
-    private Action _release = release;
+    internal sealed class RootLifetime : IDisposable
+    {
+        private Action _release;
 
-    internal ComponentModel Model { get; set; }
+        internal ComponentModel Model { get; set; }
 
-    public void Dispose() => Interlocked.Exchange(ref _release, null)?.Invoke();
+        public RootLifetime(Action release)
+        {
+            _release = release;
+        }
+
+        public void Dispose()
+        {
+            Interlocked.Exchange(ref _release, null)?.Invoke();
+        }
+    }
 }

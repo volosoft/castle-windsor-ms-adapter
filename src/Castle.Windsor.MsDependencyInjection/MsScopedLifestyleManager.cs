@@ -25,7 +25,9 @@ namespace Castle.Windsor.MsDependencyInjection
             var root = Kernel.HasComponent(typeof(GlobalMsLifetimeScope)) ? Kernel.Resolve<GlobalMsLifetimeScope>() : null;
             if (root?.ValidateScopes == true && (currentScope == null || owner is GlobalMsLifetimeScope ||
                 ReferenceEquals(currentScope.WindsorLifeTimeScope, root.WindsorLifeTimeScope)))
+            {
                 throw new InvalidOperationException($"Cannot resolve scoped service '{Model.ExtendedProperties[WindsorRegistrationHelper.ServiceTypeProperty] ?? Model.Implementation}' from the root provider or a singleton.");
+            }
 
             if (currentScope == null)
             {
@@ -40,10 +42,19 @@ namespace Castle.Windsor.MsDependencyInjection
             }
 
             if (owner is GlobalMsLifetimeScope global && global.WindsorLifeTimeScope is MsScopeCache cache)
+            {
                 cache.RecordRootDependency(Model, context);
+            }
 
-            if (owner != null) return base.Resolve(context, releasePolicy);
-            lock (currentScope) return base.Resolve(context, releasePolicy);
+            if (owner != null)
+            {
+                return base.Resolve(context, releasePolicy);
+            }
+
+            lock (currentScope)
+            {
+                return base.Resolve(context, releasePolicy);
+            }
         }
     }
 }

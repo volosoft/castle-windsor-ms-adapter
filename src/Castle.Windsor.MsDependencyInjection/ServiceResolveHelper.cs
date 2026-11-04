@@ -15,6 +15,7 @@ namespace Castle.Windsor.MsDependencyInjection;
 internal static class ServiceResolveHelper
 {
     internal static bool IsScopeBoundary(IHandler handler) => handler.ComponentModel.Implementation == typeof(ScopedResolution);
+
     public static bool HasNonKeyedComponent(IWindsorContainer container, KeyedServiceRegistry registry, Type serviceType)
         => container.Kernel.HasComponent(serviceType);
 
@@ -39,8 +40,8 @@ internal static class ServiceResolveHelper
             .Reverse()
             .Select(handler => handler.ComponentModel.Name);
     }
-    
-    public static object Resolve(IWindsorContainer container,Type serviceType, IMsLifetimeScope? trackingScope)
+
+    public static object Resolve(IWindsorContainer container, Type serviceType, IMsLifetimeScope? trackingScope)
     {
         var instance = container.Resolve(serviceType);
         Track(container.Kernel, instance, trackingScope, container.Kernel.GetHandler(serviceType)?.ComponentModel);
@@ -59,7 +60,10 @@ internal static class ServiceResolveHelper
     {
         using var lookup = KeyedServiceRegistry.UseLookup(name, id.Key);
         if (context != null)
+        {
             return ResolveInContext(container.Kernel, container.Kernel.GetHandler(name), id.ServiceType, context);
+        }
+
         return ResolveByName(container, name, id.ServiceType, trackingScope);
     }
 
@@ -67,12 +71,19 @@ internal static class ServiceResolveHelper
     {
         if (model?.ExtendedProperties[WindsorRegistrationHelper.ServiceTypeProperty] is Type)
         {
-            if (MsScopeState.Resolve(kernel, trackingScope) == null) trackingScope?.AddInstance(instance);
+            if (MsScopeState.Resolve(kernel, trackingScope) == null)
+            {
+                trackingScope?.AddInstance(instance);
+            }
+
             return;
         }
         if (model != null && MsOwnedScopeResolution.CurrentContext is { } context &&
             MsLifetimeScope.Current is GlobalMsLifetimeScope rootOwner)
+        {
             rootOwner.RecordNativeDependency(context, kernel.GetHandler(model.Name)?.ComponentModel ?? model);
+        }
+
         var target = Castle.DynamicProxy.ProxyUtil.GetUnproxiedInstance(instance);
         var scopeOwner = MsScopeState.Resolve(kernel, trackingScope);
         var transient = model?.LifestyleType == Castle.Core.LifestyleType.Transient ||
@@ -90,8 +101,14 @@ internal static class ServiceResolveHelper
         }
         var tracked = scopeOwner?.ReleasePolicy.HasTrack(instance) == true || kernel.ReleasePolicy.HasTrack(instance);
         if (model != null && scopeOwner is GlobalMsLifetimeScope root && tracked)
+        {
             root.TrackReleaseDependency(kernel.GetHandler(model.Name).ComponentModel);
-        if (tracked) trackingScope?.AddInstance(instance);
+        }
+
+        if (tracked)
+        {
+            trackingScope?.AddInstance(instance);
+        }
     }
 
     /// <summary>
@@ -137,7 +154,11 @@ internal static class ServiceResolveHelper
             return null;
         }
 
-        if (preserveNativeOrder) instances.Reverse();
+        if (preserveNativeOrder)
+        {
+            instances.Reverse();
+        }
+
         var array = Array.CreateInstance(itemType, instances.Count);
         ((ICollection)instances.Select(NullFactoryResult.Unwrap).ToArray()).CopyTo(array, 0);
         return array;
@@ -154,7 +175,9 @@ internal static class ServiceResolveHelper
         {
             var registeredOwner = kernel.GetHandler(owner.Name)?.ComponentModel ?? owner;
             if (!ReferenceEquals(registeredOwner, handler.ComponentModel) && !registeredOwner.Dependents.Contains(handler.ComponentModel))
+            {
                 registeredOwner.AddDependent(handler.ComponentModel);
+            }
         }
         return instance;
     }
@@ -172,11 +195,17 @@ internal static class ServiceResolveHelper
                 {
                     var itemKey = key;
                     if (key == Microsoft.Extensions.DependencyInjection.KeyedService.AnyKey)
+                    {
                         registry.TryGetServiceKeyByWindsorName(name, out itemKey);
+                    }
+
                     instances.Add(ResolveKeyedByName(container, name, new KeyedServiceId(itemType, itemKey), trackingScope, context));
                 }
-                else instances.Add(context == null ? ResolveByName(container, name, itemType, trackingScope)
+                else
+                {
+                    instances.Add(context == null ? ResolveByName(container, name, itemType, trackingScope)
                     : ResolveInContext(container.Kernel, container.Kernel.GetHandler(name), itemType, context));
+                }
             }
             catch (GenericHandlerTypeMismatchException) when (handler.ComponentModel.Implementation.IsGenericTypeDefinition)
             {

@@ -6,8 +6,16 @@ namespace Castle.Windsor.MsDependencyInjection
     public class WindsorServiceProviderFactory : IServiceProviderFactory<IWindsorContainer>
     {
         private readonly bool _validateScopes;
-        public WindsorServiceProviderFactory() : this(false) { }
-        public WindsorServiceProviderFactory(bool validateScopes) => _validateScopes = validateScopes;
+
+        public WindsorServiceProviderFactory() : this(false)
+        {
+        }
+
+        public WindsorServiceProviderFactory(bool validateScopes)
+        {
+            _validateScopes = validateScopes;
+        }
+
         public IWindsorContainer CreateBuilder(IServiceCollection services)
         {
             var container = services.GetSingletonServiceOrNull<IWindsorContainer>();

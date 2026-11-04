@@ -27,14 +27,26 @@ namespace Castle.Windsor.MsDependencyInjection
 #else
         public static IMsLifetimeScope Current
         {
-            get { return _current.Value; }
-            set { _current.Value = value; }
+            get
+            {
+                return _current.Value;
+            }
+            set
+            {
+                _current.Value = value;
+            }
         }
 
         private static readonly AsyncLocal<IMsLifetimeScope> _current = new AsyncLocal<IMsLifetimeScope>();
 #endif
 
-        public ILifetimeScope WindsorLifeTimeScope => _cache;
+        public ILifetimeScope WindsorLifeTimeScope
+        {
+            get
+            {
+                return _cache;
+            }
+        }
 
         private readonly MsScopeCache _cache;
 
@@ -47,26 +59,74 @@ namespace Castle.Windsor.MsDependencyInjection
 
         private int _disposed;
         private int _requiresAsyncDisposal;
-        internal bool RequiresAsyncDisposal => Volatile.Read(ref _requiresAsyncDisposal) != 0;
-        internal void RequireAsyncDisposal() => Volatile.Write(ref _requiresAsyncDisposal, 1);
-        internal bool TryBeginDispose() => Interlocked.Exchange(ref _disposed, 1) == 0;
-        internal void DisposeStarted() => MsAsyncDisposal.RunInCurrentContext(DisposeInternal);
+
+        internal bool RequiresAsyncDisposal
+        {
+            get
+            {
+                return Volatile.Read(ref _requiresAsyncDisposal) != 0;
+            }
+        }
+
+        internal void RequireAsyncDisposal()
+        {
+            Volatile.Write(ref _requiresAsyncDisposal, 1);
+        }
+
+        internal bool TryBeginDispose()
+        {
+            return Interlocked.Exchange(ref _disposed, 1) == 0;
+        }
+
+        internal void DisposeStarted()
+        {
+            MsAsyncDisposal.RunInCurrentContext(DisposeInternal);
+        }
+
         private IReleasePolicy _releasePolicy;
-        internal bool IsDisposed => Volatile.Read(ref _disposed) != 0;
-        internal IReleasePolicy ReleasePolicy => _releasePolicy ?? Container.Kernel.ReleasePolicy;
+
+        internal bool IsDisposed
+        {
+            get
+            {
+                return Volatile.Read(ref _disposed) != 0;
+            }
+        }
+
+        internal IReleasePolicy ReleasePolicy
+        {
+            get
+            {
+                return _releasePolicy ?? Container.Kernel.ReleasePolicy;
+            }
+        }
 
         internal void InitializeReleasePolicy(MsLifetimeScope parent)
         {
             if (parent == null || parent._releasePolicy != null)
+            {
                 _releasePolicy = (parent?.ReleasePolicy ?? Container.Kernel.ReleasePolicy).CreateSubPolicy();
+            }
         }
 
         private void Release(object instance)
         {
-            if (instance is ScopeActivation activation) activation.Release();
-            else if (instance is NativeAsyncRelease native) native.Dispose();
-            else if (_releasePolicy?.HasTrack(instance) == true) _releasePolicy.Release(instance);
-            else Container.Release(instance);
+            if (instance is ScopeActivation activation)
+            {
+                activation.Release();
+            }
+            else if (instance is NativeAsyncRelease native)
+            {
+                native.Dispose();
+            }
+            else if (_releasePolicy?.HasTrack(instance) == true)
+            {
+                _releasePolicy.Release(instance);
+            }
+            else
+            {
+                Container.Release(instance);
+            }
         }
 
         internal void AddNativeAsync(object instance, IAsyncDisposable target)
@@ -88,7 +148,10 @@ namespace Castle.Windsor.MsDependencyInjection
         internal void AddActivation(ScopeActivation activation)
         {
             if (this is GlobalMsLifetimeScope root && activation.Owner == null && Container.Kernel.ReleasePolicy.HasTrack(activation.Instance))
+            {
                 root.TrackReleaseDependency(Container.Kernel.GetHandler(activation.Model.Name).ComponentModel);
+            }
+
             lock (_resolvedInstances)
             {
                 if (!IsDisposed)
@@ -118,7 +181,11 @@ namespace Castle.Windsor.MsDependencyInjection
             {
                 if (Volatile.Read(ref _disposed) == 0)
                 {
-                    if (_ownedInstances.Contains(instance)) return;
+                    if (_ownedInstances.Contains(instance))
+                    {
+                        return;
+                    }
+
                     _resolvedInstances.Add(instance);
                     return;
                 }
@@ -147,10 +214,16 @@ namespace Castle.Windsor.MsDependencyInjection
 
         public void Dispose()
         {
-            if (TryBeginDispose()) MsAsyncDisposal.RunSynchronous(DisposeStarted);
+            if (TryBeginDispose())
+            {
+                MsAsyncDisposal.RunSynchronous(DisposeStarted);
+            }
         }
 
-        public ValueTask DisposeAsync() => TryBeginDispose() ? MsAsyncDisposal.Run(DisposeStarted) : default;
+        public ValueTask DisposeAsync()
+        {
+            return TryBeginDispose() ? MsAsyncDisposal.Run(DisposeStarted) : default;
+        }
 
         protected virtual void DisposeInternal()
         {
@@ -162,7 +235,13 @@ namespace Castle.Windsor.MsDependencyInjection
             var deferred = new List<ScopeActivation>();
             MsAsyncDisposal.Complete(() => DisposeTrackedInstances(deferred),
                 () => MsAsyncDisposal.Complete(cleanup,
-                    () => { foreach (var activation in deferred) activation.Release(); }));
+                    () =>
+                    {
+                        foreach (var activation in deferred)
+                        {
+                            activation.Release();
+                        }
+                    }));
         }
 
         private void DisposeTrackedInstances(List<ScopeActivation> deferred)
@@ -174,7 +253,13 @@ namespace Castle.Windsor.MsDependencyInjection
                 _children.Clear();
             }
             foreach (var child in children)
-                if (child.TryBeginDispose()) child.DisposeStarted();
+            {
+                if (child.TryBeginDispose())
+                {
+                    child.DisposeStarted();
+                }
+            }
+
             object[] instances;
             lock (_resolvedInstances)
             {

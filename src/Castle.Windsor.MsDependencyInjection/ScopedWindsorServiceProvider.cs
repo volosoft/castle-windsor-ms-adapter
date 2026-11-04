@@ -44,14 +44,28 @@ namespace Castle.Windsor.MsDependencyInjection
         {
             var lifetime = MsLifetimeScope.Using(OwnMsLifetimeScope);
             var origin = WindsorServiceScopeFactory.UsingFactoryRoot(_fromFactoryRoot ? _container : null);
-            return new DisposeAction(() => { origin.Dispose(); lifetime.Dispose(); });
+            return new DisposeAction(() =>
+            {
+                origin.Dispose();
+                lifetime.Dispose();
+            });
         }
 
-        internal void ClearCache() { lock (_anyKeyCollectionCache) _anyKeyCollectionCache.Clear(); }
+        internal void ClearCache()
+        {
+            lock (_anyKeyCollectionCache)
+            {
+                _anyKeyCollectionCache.Clear();
+            }
+        }
 
         private void ThrowIfDisposed()
         {
-            if (_scopeOwner?.IsDisposed != true) return;
+            if (_scopeOwner?.IsDisposed != true)
+            {
+                return;
+            }
+
             ClearCache();
             throw new ObjectDisposedException(nameof(ScopedWindsorServiceProvider));
         }
@@ -81,7 +95,10 @@ namespace Castle.Windsor.MsDependencyInjection
                     object Resolve() => ResolveInstanceOrNull(serviceType, isOptional, track: boundary || _isInResolvingCounter.Value == 1);
                     var result = NullFactoryResult.Unwrap(boundary ? ScopedResolution.Run(_container, Resolve) : Resolve());
                     if (!isOptional && result == null)
+                    {
                         throw new InvalidOperationException($"No service for type '{serviceType}' has been registered.");
+                    }
+
                     return result;
                 }
                 finally
@@ -95,7 +112,10 @@ namespace Castle.Windsor.MsDependencyInjection
         {
             // Check if given service is directly registered as a non-keyed component
             if (WindsorRegistrationHelper.RequiresBoxing(serviceType) && _registry.FindUnkeyedValue(serviceType) is { } valueName)
+            {
                 return ServiceResolveHelper.ResolveByName(_container, valueName, serviceType, track ? OwnMsLifetimeScope : null);
+            }
+
             if (ServiceResolveHelper.HasNonKeyedComponent(_container, _registry, serviceType))
             {
                 return ServiceResolveHelper.Resolve(_container, serviceType, track ? OwnMsLifetimeScope : null);
@@ -141,7 +161,11 @@ namespace Castle.Windsor.MsDependencyInjection
 
         private object GetKeyedServiceInternal(Type serviceType, object serviceKey, bool isOptional)
         {
-            if (serviceType == null) throw new ArgumentNullException(nameof(serviceType));
+            if (serviceType == null)
+            {
+                throw new ArgumentNullException(nameof(serviceType));
+            }
+
             ThrowIfDisposed();
             if (serviceKey == null)
             {
@@ -175,7 +199,9 @@ namespace Castle.Windsor.MsDependencyInjection
         {
             var selectedName = _registry.TryResolveWindsorKeyForService(serviceId);
             if (selectedName != null)
+            {
                 return ServiceResolveHelper.ResolveKeyedByName(_container, selectedName, serviceId, track ? OwnMsLifetimeScope : null);
+            }
             // IEnumerable<T> keyed collection
             if (ServiceResolveHelper.IsEnumerable(serviceId.ServiceType))
             {
@@ -186,10 +212,17 @@ namespace Castle.Windsor.MsDependencyInjection
                     keys.Any(name => typeof(MsScopedLifestyleManager).IsAssignableFrom(_container.Kernel.GetHandler(name).ComponentModel.CustomLifestyle));
                 lock (_anyKeyCollectionCache)
                 {
-                    if (closedScopedCache) _anyKeyCollectionCache.Remove(serviceId);
+                    if (closedScopedCache)
+                    {
+                        _anyKeyCollectionCache.Remove(serviceId);
+                    }
                     else if (_anyKeyCollectionCache.TryGetValue(serviceId, out var cached))
                     {
-                        if (cached.Names.SequenceEqual(keys)) return cached.Value;
+                        if (cached.Names.SequenceEqual(keys))
+                        {
+                            return cached.Value;
+                        }
+
                         _anyKeyCollectionCache.Remove(serviceId);
                     }
                 }
@@ -214,7 +247,10 @@ namespace Castle.Windsor.MsDependencyInjection
                     lock (_anyKeyCollectionCache)
                     {
                         if (_anyKeyCollectionCache.TryGetValue(serviceId, out var published) && published.Names.SequenceEqual(keys))
+                        {
                             return published.Value;
+                        }
+
                         _anyKeyCollectionCache[serviceId] = (result, keys.ToArray());
                     }
                 }
@@ -259,7 +295,7 @@ namespace Castle.Windsor.MsDependencyInjection
         public bool IsKeyedService(Type serviceType, object serviceKey)
         {
             ArgumentNullException.ThrowIfNull(serviceType);
-            
+
             if (serviceKey == null)
             {
                 return IsService(serviceType);

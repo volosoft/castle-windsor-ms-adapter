@@ -16,7 +16,13 @@ namespace Castle.Windsor.MsDependencyInjection.Tests
 {
     public class WindsorKeyedSpecificationTests : KeyedDependencyInjectionSpecificationTests, IDisposable
     {
-        public override bool SupportsIServiceProviderIsKeyedService => true;
+        public override bool SupportsIServiceProviderIsKeyedService
+        {
+            get
+            {
+                return true;
+            }
+        }
 
         protected override IServiceProvider CreateServiceProvider(IServiceCollection serviceCollection)
         {
@@ -259,8 +265,14 @@ namespace Castle.Windsor.MsDependencyInjection.Tests
 
             var workload = Task.Run(() => Parallel.For(0, 200, i =>
             {
-                try { sp.GetKeyedService<IKeyedFake>("k" + i).ShouldNotBeNull(); }
-                catch (Exception ex) { workloadErrors.Add(ex); }
+                try
+                {
+                    sp.GetKeyedService<IKeyedFake>("k" + i).ShouldNotBeNull();
+                }
+                catch (Exception ex)
+                {
+                    workloadErrors.Add(ex);
+                }
             }));
 
             // 30s is well beyond the work; if we hit it we're deadlocked.

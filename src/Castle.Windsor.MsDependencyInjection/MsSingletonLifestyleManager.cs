@@ -3,41 +3,45 @@ using Castle.MicroKernel;
 using Castle.MicroKernel.Context;
 using Castle.MicroKernel.Lifestyle;
 
-namespace Castle.Windsor.MsDependencyInjection;
-
-internal sealed class MsSingletonLifestyleManager : SingletonLifestyleManager
+namespace Castle.Windsor.MsDependencyInjection
 {
-    private GlobalMsLifetimeScope _root;
-    private RootLifetime _lifetime;
-
-    public override object Resolve(CreationContext context, IReleasePolicy releasePolicy)
+    internal sealed class MsSingletonLifestyleManager : SingletonLifestyleManager
     {
-        _root = Kernel.Resolve<GlobalMsLifetimeScope>();
-        _lifetime = _root.GetLifetime(Model, () => base.Dispose());
-        _root.RecordDependency(context, _lifetime);
-        using (MsLifetimeScope.Using(_root))
+        private GlobalMsLifetimeScope _root;
+        private RootLifetime _lifetime;
+
+        public override object Resolve(CreationContext context, IReleasePolicy releasePolicy)
         {
-            var instance = base.Resolve(context, releasePolicy);
-            if (_root.IsDisposed)
+            _root = Kernel.Resolve<GlobalMsLifetimeScope>();
+            _lifetime = _root.GetLifetime(Model, () => base.Dispose());
+            _root.RecordDependency(context, _lifetime);
+            using (MsLifetimeScope.Using(_root))
             {
-                MsAsyncDisposal.ReleaseLate(instance, () => base.Dispose());
-                throw new ObjectDisposedException(nameof(GlobalMsLifetimeScope));
+                var instance = base.Resolve(context, releasePolicy);
+                if (_root.IsDisposed)
+                {
+                    MsAsyncDisposal.ReleaseLate(instance, () => base.Dispose());
+                    throw new ObjectDisposedException(nameof(GlobalMsLifetimeScope));
+                }
+                return instance;
             }
-            return instance;
         }
-    }
 
-    protected override Burden CreateInstance(CreationContext context, bool trackedExternally)
-    {
-        var burden = base.CreateInstance(context, trackedExternally);
-        _root.CompleteLifetime(_lifetime, Model);
-        return burden;
-    }
+        protected override Burden CreateInstance(CreationContext context, bool trackedExternally)
+        {
+            var burden = base.CreateInstance(context, trackedExternally);
+            _root.CompleteLifetime(_lifetime, Model);
+            return burden;
+        }
 
-    public override void Dispose()
-    {
-        // The registered lifetime participates in Windsor's disposal graph independently
-        // of the open-generic handler that owns this closed lifestyle manager.
-        if (_lifetime == null) base.Dispose();
+        public override void Dispose()
+        {
+            // The registered lifetime participates in Windsor's disposal graph independently
+            // of the open-generic handler that owns this closed lifestyle manager.
+            if (_lifetime == null)
+            {
+                base.Dispose();
+            }
+        }
     }
 }

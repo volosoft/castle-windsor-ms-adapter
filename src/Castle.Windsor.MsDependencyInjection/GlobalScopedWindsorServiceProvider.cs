@@ -14,7 +14,10 @@ namespace Castle.Windsor.MsDependencyInjection
             MsAsyncDisposal.RunSynchronous(OwnMsLifetimeScope.Dispose);
         }
 
-        public System.Threading.Tasks.ValueTask DisposeAsync() => OwnMsLifetimeScope is IAsyncDisposable asynchronous
+        public System.Threading.Tasks.ValueTask DisposeAsync()
+        {
+            return OwnMsLifetimeScope is IAsyncDisposable asynchronous
             ? asynchronous.DisposeAsync() : MsAsyncDisposal.Run(OwnMsLifetimeScope.Dispose);
+        }
     }
 }

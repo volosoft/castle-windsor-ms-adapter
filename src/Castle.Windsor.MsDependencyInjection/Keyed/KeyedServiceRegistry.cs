@@ -14,13 +14,17 @@ namespace Castle.Windsor.MsDependencyInjection.Keyed;
 internal sealed class KeyedServiceRegistry
 {
     private readonly IKernel _kernel;
+
     public KeyedServiceRegistry(IKernel kernel) => _kernel = kernel;
+
     private KeyedServiceRegistry? Parent => _kernel.Parent?.HasComponent(typeof(KeyedServiceRegistry)) == true
         ? _kernel.Parent.Resolve<KeyedServiceRegistry>() : null;
 
     [ThreadStatic]
     private static Lookup? _lookup;
+
     internal sealed record Lookup(string Name, object? Key);
+
     private readonly object _sync = new();
     private readonly Dictionary<Type, List<Registration>> _registrations = new();
     private readonly Dictionary<KeyedServiceId, Registration> _explicit = new();
@@ -58,7 +62,11 @@ internal sealed class KeyedServiceRegistry
         lock (_sync)
         {
             var registration = Find(id);
-            if (registration?.Name != null) return registration.Name;
+            if (registration?.Name != null)
+            {
+                return registration.Name;
+            }
+
             if (registration != null)
             {
                 var expansionId = (registration, id.Key);
@@ -80,7 +88,9 @@ internal sealed class KeyedServiceRegistry
         {
             var registrations = ForType(id.ServiceType);
             if (id.ServiceType.IsConstructedGenericType && id.Key != KeyedService.AnyKey)
+            {
                 registrations = registrations.Concat(ForType(id.ServiceType.GetGenericTypeDefinition()));
+            }
 
             // Expansions are derived lookup state, never collection registrations.
             names = registrations.Where(entry => entry.Name != null && entry.Key != null &&
@@ -94,14 +104,32 @@ internal sealed class KeyedServiceRegistry
 
     public bool HasExplicitOrAnyKey(KeyedServiceId id)
     {
-        lock (_sync) if (Find(id) != null) return true;
+        lock (_sync)
+        {
+            if (Find(id) != null)
+            {
+                return true;
+            }
+        }
+
         return Parent?.HasExplicitOrAnyKey(id) == true;
     }
 
     public bool IsKeyedService(string? name)
     {
-        if (name == null) return false;
-        lock (_sync) if (_keysByName.TryGetValue(name, out var key)) return key != null;
+        if (name == null)
+        {
+            return false;
+        }
+
+        lock (_sync)
+        {
+            if (_keysByName.TryGetValue(name, out var key))
+            {
+                return key != null;
+            }
+        }
+
         return Parent?.IsKeyedService(name) == true;
     }
 
@@ -109,9 +137,16 @@ internal sealed class KeyedServiceRegistry
     {
         lock (_sync)
         {
-            if (name != null && _keysByName.TryGetValue(name, out key)) return key != null;
+            if (name != null && _keysByName.TryGetValue(name, out key))
+            {
+                return key != null;
+            }
         }
-        if (Parent is { } parent) return parent.TryGetServiceKeyByWindsorName(name, out key);
+        if (Parent is { } parent)
+        {
+            return parent.TryGetServiceKeyByWindsorName(name, out key);
+        }
+
         key = null;
         return false;
     }
@@ -119,15 +154,23 @@ internal sealed class KeyedServiceRegistry
     internal string? FindUnkeyedValue(Type serviceType)
     {
         lock (_sync)
-            if (_explicit.GetValueOrDefault(new KeyedServiceId(serviceType, null))?.Name is { } name) return name;
+        {
+            if (_explicit.GetValueOrDefault(new KeyedServiceId(serviceType, null))?.Name is { } name)
+            {
+                return name;
+            }
+        }
+
         return Parent?.FindUnkeyedValue(serviceType);
     }
 
     internal string[] FindUnkeyedValueNames(Type serviceType)
     {
         lock (_sync)
+        {
             return ForType(serviceType).Where(entry => entry.Key == null && entry.Name != null)
-                .OrderByDescending(entry => entry.Order).Select(entry => entry.Name!).ToArray();
+            .OrderByDescending(entry => entry.Order).Select(entry => entry.Name!).ToArray();
+        }
     }
 
     public bool TryGetLookupKey(CreationContext context, string name, [NotNullWhen(true)] out object? key)
@@ -168,7 +211,10 @@ internal sealed class KeyedServiceRegistry
     private void Add(Registration registration)
     {
         if (!_registrations.TryGetValue(registration.ServiceType, out var entries))
+        {
             _registrations.Add(registration.ServiceType, entries = new List<Registration>());
+        }
+
         entries.Add(registration);
     }
 
@@ -176,7 +222,11 @@ internal sealed class KeyedServiceRegistry
     {
         var name = CreateName();
         // Constructor metadata is consulted during registration, before it completes.
-        lock (_sync) _keysByName.Add(name, key);
+        lock (_sync)
+        {
+            _keysByName.Add(name, key);
+        }
+
         registration.RegisterExpansion!(name, key);
         return name;
     }

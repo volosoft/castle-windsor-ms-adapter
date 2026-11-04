@@ -4,69 +4,142 @@ using System.Threading.Tasks;
 using Castle.MicroKernel;
 using Castle.Core;
 
-namespace Castle.Windsor.MsDependencyInjection;
-
-internal sealed class ScopeActivation(MsLifetimeScope scope, Burden burden, Burden owner)
+namespace Castle.Windsor.MsDependencyInjection
 {
-    private int _released;
-    internal MsLifetimeScope Scope { get; } = scope;
-    internal Burden Owner { get; } = owner;
-    internal object Instance => burden.Instance;
-    internal ComponentModel Model => burden.Model;
-    internal bool IsReleased => Volatile.Read(ref _released) != 0;
-
-    internal void Observe() => burden.Released += Released;
-
-    private void Released(Burden value)
+    internal sealed class ScopeActivation
     {
-        Interlocked.Exchange(ref _released, 1);
-        value.Released -= Released;
-    }
+        private readonly Burden _burden;
+        private int _released;
 
-    internal void Release()
-    {
-        if (!IsReleased && Owner?.Instance == null) burden.Release();
-    }
+        internal MsLifetimeScope Scope { get; }
 
-    internal void ReleaseAfter(ScopeActivation[] owners)
-    {
-        var remaining = owners.Length;
-        foreach (var value in owners)
-            value.WhenReleased(() => { if (Interlocked.Decrement(ref remaining) == 0) Release(); });
-    }
+        internal Burden Owner { get; }
 
-    private void WhenReleased(Action callback)
-    {
-        var observed = 0;
-        void OnReleased(Burden value)
+        internal object Instance
         {
-            if (Interlocked.Exchange(ref observed, 1) != 0) return;
-            value.Released -= OnReleased;
-            callback();
+            get
+            {
+                return _burden.Instance;
+            }
         }
-        burden.Released += OnReleased;
-        if (IsReleased) OnReleased(burden);
-    }
-}
 
-internal sealed class NativeAsyncRelease(IAsyncDisposable target, Action release)
-{
-    internal void Dispose()
+        internal ComponentModel Model
+        {
+            get
+            {
+                return _burden.Model;
+            }
+        }
+
+        internal bool IsReleased
+        {
+            get
+            {
+                return Volatile.Read(ref _released) != 0;
+            }
+        }
+
+        public ScopeActivation(MsLifetimeScope scope, Burden burden, Burden owner)
+        {
+            _burden = burden;
+            Scope = scope;
+            Owner = owner;
+        }
+
+        internal void Observe()
+        {
+            _burden.Released += Released;
+        }
+
+        private void Released(Burden value)
+        {
+            Interlocked.Exchange(ref _released, 1);
+            value.Released -= Released;
+        }
+
+        internal void Release()
+        {
+            if (!IsReleased && Owner?.Instance == null)
+            {
+                _burden.Release();
+            }
+        }
+
+        internal void ReleaseAfter(ScopeActivation[] owners)
+        {
+            var remaining = owners.Length;
+            foreach (var value in owners)
+            {
+                value.WhenReleased(() =>
+                {
+                    if (Interlocked.Decrement(ref remaining) == 0)
+                    {
+                        Release();
+                    }
+                });
+            }
+        }
+
+        private void WhenReleased(Action callback)
+        {
+            var observed = 0;
+            void OnReleased(Burden value)
+            {
+                if (Interlocked.Exchange(ref observed, 1) != 0)
+                {
+                    return;
+                }
+                value.Released -= OnReleased;
+                callback();
+            }
+            _burden.Released += OnReleased;
+            if (IsReleased)
+            {
+                OnReleased(_burden);
+            }
+        }
+    }
+
+    internal sealed class NativeAsyncRelease
     {
-        var context = MsAsyncDisposal.Current;
-        if (context?.StopDecommission == true) return;
-        try
+        private readonly IAsyncDisposable _target;
+        private readonly Action _release;
+
+        public NativeAsyncRelease(IAsyncDisposable target, Action release)
         {
-            if (context?.Asynchronous != true)
-                throw new InvalidOperationException($"'{target.GetType()}' only implements IAsyncDisposable. Use DisposeAsync.");
-            target.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            _target = target;
+            _release = release;
         }
-        catch (Exception exception)
+
+        internal void Dispose()
         {
-            if (context == null) throw;
-            context.Capture(exception);
-            context.StopDecommission = true;
+            var context = MsAsyncDisposal.Current;
+            if (context?.StopDecommission == true)
+            {
+                return;
+            }
+            try
+            {
+                if (context?.Asynchronous != true)
+                {
+                    throw new InvalidOperationException($"'{_target.GetType()}' only implements IAsyncDisposable. Use DisposeAsync.");
+                }
+
+                _target.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            }
+            catch (Exception exception)
+            {
+                if (context == null)
+                {
+                    throw;
+                }
+                context.Capture(exception);
+                context.StopDecommission = true;
+            }
+            finally
+            {
+                _release();
+            }
         }
-        finally { release(); }
     }
 }

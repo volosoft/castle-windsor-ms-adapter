@@ -45,20 +45,37 @@ internal sealed class KeyedServicesSubResolver : ISubDependencyResolver
     {
         if (!TryGetKeyedParameter(model, dependency, out var parameterInfo))
         {
-            if (ReferenceEquals(_probing.Context, context) && ReferenceEquals(_probing.Dependency, dependency)) return false;
+            if (ReferenceEquals(_probing.Context, context) && ReferenceEquals(_probing.Dependency, dependency))
+            {
+                return false;
+            }
+
             var registration = FindRegistration(context, dependency);
-            if (registration == null) return false;
+            if (registration == null)
+            {
+                return false;
+            }
+
             if (!WindsorRegistrationHelper.RequiresBoxing(dependency.TargetItemType))
             {
                 // A registered factory may supply null through Windsor's normal fallback.
                 if (registration.ComponentModel.ExtendedProperties[NullFactoryResult.FactoryMarker] is true)
+                {
                     dependency.IsOptional = true;
+                }
+
                 return false;
             }
             var previous = _probing;
             _probing = (context, dependency);
-            try { return !_container.Kernel.Resolver.CanResolve(context, contextHandlerResolver, model, dependency); }
-            finally { _probing = previous; }
+            try
+            {
+                return !_container.Kernel.Resolver.CanResolve(context, contextHandlerResolver, model, dependency);
+            }
+            finally
+            {
+                _probing = previous;
+            }
         }
 
         // A [ServiceKey] parameter can only be filled when the enclosing component was
@@ -71,8 +88,15 @@ internal sealed class KeyedServicesSubResolver : ISubDependencyResolver
             return false;
         }
 
-        if (parameterInfo.Kind == KeyedParameterKind.ServiceKey) return true;
-        if (dependency.HasDefaultValue || ServiceResolveHelper.IsEnumerable(parameterInfo.ParameterType)) return true;
+        if (parameterInfo.Kind == KeyedParameterKind.ServiceKey)
+        {
+            return true;
+        }
+
+        if (dependency.HasDefaultValue || ServiceResolveHelper.IsEnumerable(parameterInfo.ParameterType))
+        {
+            return true;
+        }
 
         var available = parameterInfo.LookupMode == ServiceKeyLookupMode.NullKey
             ? _container.Kernel.HasComponent(parameterInfo.ParameterType)
@@ -90,7 +114,10 @@ internal sealed class KeyedServicesSubResolver : ISubDependencyResolver
         {
             var factory = FindRegistration(context, dependency);
             if (factory != null)
+            {
                 return NullFactoryResult.Unwrap(ServiceResolveHelper.ResolveInContext(_container.Kernel, factory, dependency.TargetItemType, context))!;
+            }
+
             throw new DependencyResolverException($"Parameter '{dependency.DependencyKey}' of '{model.Implementation}' is not a keyed-services parameter.");
         }
 
@@ -130,7 +157,11 @@ internal sealed class KeyedServicesSubResolver : ISubDependencyResolver
                 throw new ArgumentOutOfRangeException();
         }
 
-        if (resolved is NullFactoryResult) return null!;
+        if (resolved is NullFactoryResult)
+        {
+            return null!;
+        }
+
         if (resolved is not null)
         {
             return resolved;
@@ -148,7 +179,9 @@ internal sealed class KeyedServicesSubResolver : ISubDependencyResolver
     {
         var name = _keyedRegistry.TryResolveWindsorKeyForService(new KeyedServiceId(type, key));
         if (name != null)
+        {
             return ServiceResolveHelper.ResolveKeyedByName(_container, name, new KeyedServiceId(type, key), trackingScope: null, context);
+        }
 
         if (ServiceResolveHelper.IsEnumerable(type))
         {
@@ -161,9 +194,17 @@ internal sealed class KeyedServicesSubResolver : ISubDependencyResolver
 
     private IHandler? FindRegistration(CreationContext context, DependencyModel dependency)
     {
-        if (dependency.Parameter != null || dependency.TargetItemType == null) return null;
+        if (dependency.Parameter != null || dependency.TargetItemType == null)
+        {
+            return null;
+        }
+
         var valueName = _keyedRegistry.FindUnkeyedValue(dependency.TargetItemType);
-        if (valueName != null) return _container.Kernel.GetHandler(valueName);
+        if (valueName != null)
+        {
+            return _container.Kernel.GetHandler(valueName);
+        }
+
         var handler = _container.Kernel.GetHandler(dependency.TargetItemType);
         return handler?.ComponentModel.ExtendedProperties[WindsorRegistrationHelper.ServiceTypeProperty] is Type && !handler.IsBeingResolvedInContext(context) ? handler : null;
     }
@@ -172,9 +213,14 @@ internal sealed class KeyedServicesSubResolver : ISubDependencyResolver
     {
         var valueName = _keyedRegistry.FindUnkeyedValue(type);
         if (valueName != null)
+        {
             return ServiceResolveHelper.ResolveInContext(_container.Kernel, _container.Kernel.GetHandler(valueName), type, context);
+        }
+
         if (_container.Kernel.HasComponent(type))
+        {
             return ServiceResolveHelper.ResolveInContext(_container.Kernel, _container.Kernel.GetHandler(type), type, context);
+        }
 
         if (ServiceResolveHelper.IsEnumerable(type))
         {
@@ -211,7 +257,9 @@ internal sealed class KeyedServicesSubResolver : ISubDependencyResolver
     {
         parameterInfo = null;
         if (dependency.Parameter != null && dependency.Parameter.Value != KeyedConstructorDependencyContributor.Reference)
+        {
             return false;
+        }
 
         if (dependency is not ConstructorDependencyModel ctorDependency)
         {
@@ -236,7 +284,11 @@ internal sealed class KeyedServicesSubResolver : ISubDependencyResolver
             return false;
         }
 
-        if (!_typeMetadataRegistry.TryGet(declaringType, matchedParameter, out var info)) return false;
+        if (!_typeMetadataRegistry.TryGet(declaringType, matchedParameter, out var info))
+        {
+            return false;
+        }
+
         parameterInfo = info?.ForComponent(_keyedRegistry.IsKeyedService(model.Name));
         return parameterInfo != null;
     }

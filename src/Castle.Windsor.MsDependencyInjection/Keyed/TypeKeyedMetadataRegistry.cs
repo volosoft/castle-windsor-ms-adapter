@@ -86,7 +86,11 @@ internal sealed class TypeKeyedMetadataRegistry
                 .Concat(parameter.GetCustomAttributes<ServiceKeyAttribute>()).ToDictionary(attribute => attribute.GetType());
             foreach (var metadata in parameter.CustomAttributes)
             {
-                if (!supported.TryGetValue(metadata.AttributeType, out var attribute)) continue;
+                if (!supported.TryGetValue(metadata.AttributeType, out var attribute))
+                {
+                    continue;
+                }
+
                 if (attribute is FromKeyedServicesAttribute fromKeyed)
                 {
                     var info = new KeyedParameterInfo(KeyedParameterKind.FromKeyed,
@@ -100,7 +104,10 @@ internal sealed class TypeKeyedMetadataRegistry
                         ServiceKeyLookupMode.InheritKey, null, parameter.ParameterType);
                 }
             }
-            return first == null ? null : first with { NonKeyedFallback = nonKeyed };
+            return first == null ? null : first with
+            {
+                NonKeyedFallback = nonKeyed
+            };
         }
     }
 

@@ -41,23 +41,35 @@ namespace Castle.Windsor.MsDependencyInjection
             catch
             {
                 // Cleanup must not replace the provider creation error.
-                try { _parentLifetimeScope?.RemoveChild(LifetimeScope); }
-                catch { }
                 try
                 {
-                    if (LifetimeScope.TryBeginDispose()) MsAsyncDisposal.ReleaseLate(LifetimeScope, LifetimeScope.DisposeStarted);
+                    _parentLifetimeScope?.RemoveChild(LifetimeScope);
                 }
-                catch { }
+                catch
+                {
+                }
+                try
+                {
+                    if (LifetimeScope.TryBeginDispose())
+                    {
+                        MsAsyncDisposal.ReleaseLate(LifetimeScope, LifetimeScope.DisposeStarted);
+                    }
+                }
+                catch
+                {
+                }
                 throw;
             }
         }
-         
+
         public void Dispose()
         {
             if (Interlocked.Exchange(ref _disposed, 1) == 0)
             {
                 var started = LifetimeScope.TryBeginDispose();
-                MsAsyncDisposal.RunSynchronous(() => DisposeCore(started ? LifetimeScope.DisposeStarted : static () => { }));
+                MsAsyncDisposal.RunSynchronous(() => DisposeCore(started ? LifetimeScope.DisposeStarted : static () =>
+                {
+                }));
             }
         }
 
@@ -70,9 +82,15 @@ namespace Castle.Windsor.MsDependencyInjection
 
         public ValueTask DisposeAsync()
         {
-            if (Interlocked.Exchange(ref _disposed, 1) != 0) return default;
+            if (Interlocked.Exchange(ref _disposed, 1) != 0)
+            {
+                return default;
+            }
+
             var started = LifetimeScope.TryBeginDispose();
-            return MsAsyncDisposal.Run(() => DisposeCore(started ? LifetimeScope.DisposeStarted : static () => { }),
+            return MsAsyncDisposal.Run(() => DisposeCore(started ? LifetimeScope.DisposeStarted : static () =>
+            {
+            }),
                 LifetimeScope.RequiresAsyncDisposal);
         }
     }

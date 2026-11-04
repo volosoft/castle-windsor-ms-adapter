@@ -18,12 +18,13 @@ public sealed class ParityContext
     }
 
     public IServiceProvider Provider { get; }
+
     public DisposeTracker Disposes { get; }
 
     // IServiceProviderIsService / IServiceProviderIsKeyedService are resolved as services on both
     // backends — the real MS ServiceProvider does NOT expose them through a direct cast.
     public IServiceProviderIsKeyedService IsKeyedService => Provider.GetRequiredService<IServiceProviderIsKeyedService>();
-    
+
     public IServiceProviderIsService IsService => Provider.GetRequiredService<IServiceProviderIsService>();
 
     /// <summary>Creates a DI scope, runs <paramref name="body"/> against it, then disposes it.</summary>
@@ -38,7 +39,11 @@ public sealed class ParityContext
     /// <summary>Disposes the root provider. Idempotent — safe to call from a test and again from the runner.</summary>
     public void DisposeProvider()
     {
-        if (_disposed) return;
+        if (_disposed)
+        {
+            return;
+        }
+
         _disposed = true;
         (Provider as IDisposable)?.Dispose();
     }
@@ -175,7 +180,10 @@ public static class ParityRunner
         {
             assert(ctx);
         }
-        catch (XunitException) { throw; }
+        catch (XunitException)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             throw new XunitException($"[Windsor divergence] {scenario}: {ex.GetType().Name}: {ex.Message}\n{ex}");

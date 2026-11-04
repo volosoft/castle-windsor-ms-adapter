@@ -15,16 +15,26 @@ namespace Castle.Windsor.MsDependencyInjection
     {
         internal const string ServiceTypeProperty = "MsServiceType";
         internal const string InfrastructureProperty = "MsInfrastructure";
-        internal static bool RequiresBoxing(Type type) => type.IsValueType || type == typeof(string);
+
+        internal static bool RequiresBoxing(Type type)
+        {
+            return type.IsValueType || type == typeof(string);
+        }
+
         private static bool HasLocalComponent(IWindsorContainer container, Type type)
-            => ((INamingSubSystem)container.Kernel.GetSubSystem(SubSystemConstants.NamingKey)).Contains(type);
+        {
+            return ((INamingSubSystem)container.Kernel.GetSubSystem(SubSystemConstants.NamingKey)).Contains(type);
+        }
+
         /// <summary>
         /// Adds all given services from <see cref="Microsoft.Extensions.DependencyInjection"/>
         /// to the Castle Windsor container.
         /// </summary>
         /// <returns>A Castle Windsor service provider.</returns>
         public static IServiceProvider CreateServiceProvider(IWindsorContainer container, IServiceCollection services)
-            => CreateServiceProvider(container, services, validateScopes: false);
+        {
+            return CreateServiceProvider(container, services, validateScopes: false);
+        }
 
         public static IServiceProvider CreateServiceProvider(IWindsorContainer container, IServiceCollection services, bool validateScopes)
         {
@@ -56,13 +66,22 @@ namespace Castle.Windsor.MsDependencyInjection
         private static void AddBaseServices(IWindsorContainer container)
         {
             if (!HasLocalComponent(container, typeof(MsScopeState)))
+            {
                 container.Register(Component.For<MsScopeState>().LifestyleScoped<MsScopedAccesor>());
+            }
+
             if (!HasLocalComponent(container, typeof(NativeDecommissionScheduler)))
+            {
                 container.Register(Component.For<NativeDecommissionScheduler>().Instance(new NativeDecommissionScheduler(container.Kernel)));
+            }
+
             if (!HasLocalComponent(container, typeof(ScopedResolution)))
+            {
                 container.Register(Component.For<ScopedResolution>()
-                    .UsingFactoryMethod((_, _, context) => new ScopedResolution((Func<object>)context.AdditionalArguments["resolve"]), managedExternally: true)
-                    .LifestyleTransient());
+                .UsingFactoryMethod((_, _, context) => new ScopedResolution((Func<object>)context.AdditionalArguments["resolve"]), managedExternally: true)
+                .LifestyleTransient());
+            }
+
             if (!HasLocalComponent(container, typeof(IWindsorContainer)))
             {
                 container.Register(
@@ -139,14 +158,21 @@ namespace Castle.Windsor.MsDependencyInjection
 
         private static void AddSubResolvers(IWindsorContainer container)
         {
-            if (container.Kernel.GetSubSystem(SubSystemConstants.NamingKey) is KeyedServicesNamingSubSystem) return;
+            if (container.Kernel.GetSubSystem(SubSystemConstants.NamingKey) is KeyedServicesNamingSubSystem)
+            {
+                return;
+            }
+
             var naming = (INamingSubSystem)container.Kernel.GetSubSystem(SubSystemConstants.NamingKey);
             container.Kernel.AddSubSystem(SubSystemConstants.NamingKey,
                 new KeyedServicesNamingSubSystem(naming, container.Resolve<KeyedServiceRegistry>()));
             var constructorDependencies = new KeyedConstructorDependencyContributor(
                 container.Resolve<TypeKeyedMetadataRegistry>(), container.Resolve<KeyedServiceRegistry>());
             container.Kernel.ComponentModelBuilder.AddContributor(constructorDependencies);
-            foreach (var handler in naming.GetAllHandlers()) constructorDependencies.ProcessModel(container.Kernel, handler.ComponentModel);
+            foreach (var handler in naming.GetAllHandlers())
+            {
+                constructorDependencies.ProcessModel(container.Kernel, handler.ComponentModel);
+            }
             // [FromKeyedServices] / [ServiceKey] constructor parameter injection.
             // Has to be the first one, so it handles keyed collections.
             // The sub-resolver takes the container directly: routing through ScopedWindsorServiceProvider
@@ -284,17 +310,30 @@ namespace Castle.Windsor.MsDependencyInjection
         }
 
         private static ComponentRegistration<object> ConfigureActivator(this ComponentRegistration<object> registration, Type implementation)
-            => implementation.IsValueType ? registration.Activator<MsValueTypeActivator>() : registration;
+        {
+            return implementation.IsValueType ? registration.Activator<MsValueTypeActivator>() : registration;
+        }
 
         private static ComponentRegistration<object> ConfigureLifecycle(this ComponentRegistration<object> registrationBuilder, ServiceLifetime serviceLifetime, Type serviceType, bool factory = false, bool owned = true)
         {
             registrationBuilder.ExtendedProperties(Property.ForKey(ServiceTypeProperty).Eq(serviceType));
-            if (owned) registrationBuilder.AddDescriptor(new MsOwnedLifecycleContributor(factory));
+            if (owned)
+            {
+                registrationBuilder.AddDescriptor(new MsOwnedLifecycleContributor(factory));
+            }
+
             switch (serviceLifetime)
             {
                 case ServiceLifetime.Transient:
-                    if (factory) registrationBuilder.LifestyleCustom<MsFactoryTransientLifestyleManager>();
-                    else registrationBuilder.LifestyleTransient();
+                    if (factory)
+                    {
+                        registrationBuilder.LifestyleCustom<MsFactoryTransientLifestyleManager>();
+                    }
+                    else
+                    {
+                        registrationBuilder.LifestyleTransient();
+                    }
+
                     break;
                 case ServiceLifetime.Scoped:
                     registrationBuilder.LifestyleCustom<MsScopedLifestyleManager>();

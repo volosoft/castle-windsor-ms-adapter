@@ -9,7 +9,7 @@ namespace Castle.Windsor.MsDependencyInjection
     /// <summary>
     /// Used to obtain true lifetime scope for dependent service.
     /// </summary>
-    public class MsLifetimeScopeProvider 
+    public class MsLifetimeScopeProvider
     {
         public IMsLifetimeScope LifetimeScope { get; }
 
@@ -26,7 +26,11 @@ namespace Castle.Windsor.MsDependencyInjection
         internal static IMsLifetimeScope SelectScope(IKernel kernel, CreationContext context)
         {
             var scope = MsLifetimeScope.Current;
-            if (scope is GlobalMsLifetimeScope || !kernel.HasComponent(typeof(GlobalMsLifetimeScope))) return scope;
+            if (scope is GlobalMsLifetimeScope || !kernel.HasComponent(typeof(GlobalMsLifetimeScope)))
+            {
+                return scope;
+            }
+
             var cachedOwner = false;
             context.SelectScopeRoot(handlers =>
             {
